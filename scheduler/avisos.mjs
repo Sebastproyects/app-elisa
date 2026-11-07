@@ -5,7 +5,7 @@
 import admin from 'firebase-admin';
 
 const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
-if (!sa.project_id) { console.error('Falta el secreto FIREBASE_SERVICE_ACCOUNT'); process.exit(1); }
+if (!sa.project_id) { console.log('Todavía no está el secreto FIREBASE_SERVICE_ACCOUNT: no hay nada que hacer.'); process.exit(0); }
 admin.initializeApp({ credential: admin.credential.cert(sa) });
 const db = admin.firestore();
 const fcm = admin.messaging();
