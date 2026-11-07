@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Puesto Elisa</title>
+<meta name="theme-color" content="#B4381E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Puesto Elisa">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<script>
+  // El ingreso con Google solo funciona bien en el dominio de Firebase: si abrieron otro, los llevamos.
+  (function () {
+    var h = location.hostname, want = 'app-elisa-63e2e.firebaseapp.com';
+    if (h === 'app-elisa-63e2e.web.app') location.replace('https://' + want + location.pathname + location.search);
+  })();
+</script>
+</head>
+<body>
+<div id="app"><div class="center"><div class="logo">🥪</div><p class="big">Cargando…</p></div></div>
+<div id="sheet"></div>
+<div id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

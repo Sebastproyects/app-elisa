@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    // Persona con cuenta aprobada (cualquier perfil menos "pending").
+    function active() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().role != 'pending';
+    }
+    function isAdmin() { return active() && userDoc().role == 'admin'; }
+
+    // El correo de la administradora NO está en el código: vive en el documento config/app.
+    function isAdminEmail() {
+      return exists(/databases/$(database)/documents/config/app)
+        && get(/databases/$(database)/documents/config/app).data.adminEmail == request.auth.token.email;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      // Cada persona crea su propio documento: "pending", o "admin" solo si su correo es el de Elisa.
+      allow create: if signedIn() && request.auth.uid == uid && (
+        request.resource.data.role == 'pending'
+        || (request.resource.data.role == 'admin' && isAdminEmail()));
+      // Cada quien solo puede cambiar sus datos de contacto y sus avisos; el perfil lo cambia solo Elisa.
+      allow update: if isAdmin()
+        || (signedIn() && request.auth.uid == uid
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tokens', 'name', 'photo']));
+      allow delete: if isAdmin() && request.auth.uid != uid;
+    }
+
+    match /config/{doc} {
+      allow read: if active();
+      allow write: if isAdmin();
+    }
+    match /products/{id} {
+      allow read: if active();
+      allow write: if isAdmin();
+    }
+    match /status/{id} {
+      allow read, write: if active();
+    }
+    match /reports/{id} {
+      allow read, create: if active();
+    }
+    match /counts/{id} {
+      allow read, write: if active();
+    }
+    // Cola de avisos: los celulares solo la escriben; la lee el programador (que no pasa por estas reglas).
+    match /alerts/{id} {
+      allow create: if active();
+    }
+  }
+}
