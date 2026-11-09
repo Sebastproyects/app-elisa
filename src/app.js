@@ -29,6 +29,37 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* sin almacenamiento */ } },
 };
 
+
+/* ============================== iconos ============================== */
+const ICONS = {
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  cart: '<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>',
+  truck: '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/>',
+  clipboard: '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
+  calcheck: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/>',
+  basket: '<path d="m15 11-1 9"/><path d="m19 11-4-7"/><path d="M2 11h20"/><path d="m3.5 11 1.6 7.4a2 2 0 0 0 2 1.6h9.8a2 2 0 0 0 2-1.6l1.7-7.4"/><path d="M4.5 15.5h15"/><path d="m5 11 4-7"/><path d="m9 11 1 9"/>',
+  chef: '<path d="M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1Z"/><path d="M6 17h12"/>',
+  sliders: '<line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/>',
+  phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
+  note: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  half: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
+  down: '<path d="m6 9 6 6 6-6"/>',
+  up: '<path d="m18 15-6-6-6 6"/>',
+  box: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="m7.5 4.27 9 5.15"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  share: '<path d="M12 3v12"/><path d="m8 7 4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
+};
+const ico = (n, size = 22) => `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+// Logo: un toldo de puesto en los colores de la app.
+const LOGO = `<svg class="logo" viewBox="0 0 96 96" aria-hidden="true"><rect width="96" height="96" rx="24" fill="#2F6F6B"/>
+  <g><path d="M18 30h60l5 16H13z" fill="#FBF6EC"/><path d="M28 30h10l-2 16H21zM48 30h10l2 16H46zM68 30h10l5 16H72z" fill="#E9A860"/>
+  <path d="M13 46q5.5 8 11 0q5.5 8 11 0q5.5 8 11 0q5.5 8 11 0q5.5 8 11 0q5.5 8 11 0" fill="#FBF6EC"/>
+  <rect x="21" y="52" width="4" height="18" rx="2" fill="#FBF6EC"/><rect x="71" y="52" width="4" height="18" rx="2" fill="#FBF6EC"/>
+  <rect x="17" y="66" width="62" height="7" rx="3.5" fill="#FBF6EC"/><path d="M36 66a12 12 0 0 1 24 0z" fill="#E9A860"/></g></svg>`;
+
 /* ================================ estado ================================ */
 const S = {
   user: null, me: null, loading: true,
@@ -55,10 +86,11 @@ const stateOf = (id) => getSt(id).state || 'ok';
 const unitOf = (p, mode) => (p.units && p.units[mode]) || (MODES[mode] && MODES[mode].unit) || '';
 
 const STATES = {
-  out: { sym: '✕', label: 'Falta' },
-  low: { sym: '◐', label: 'Hay poco' },
-  ok: { sym: '✓', label: 'Sí hay' },
+  out: { label: 'Falta' },
+  low: { label: 'Hay poco' },
+  ok: { label: 'Sí hay' },
 };
+const stIcon = (k) => ico(k === 'out' ? 'x' : k === 'low' ? 'half' : 'check', 26);
 
 function fmtQty(p, st) {
   if (st.qty === null || st.qty === undefined || st.qty === '') return '';
@@ -112,7 +144,7 @@ function overdueItems() {
     && (getSt(p.id).since || 0) < d0 + PROD_START_MIN * 60000);
 }
 const sentToday = () => prodList().filter((p) => needsSend(p) && isSent(getSt(p.id)) && getSt(p.id).sentAt >= day0());
-const noteBlock = (st) => (st.note ? `<div class="cmt">💬 ${esc(st.note)}</div>` : '');
+const noteBlock = (st) => (st.note ? `<div class="cmt">${ico('note', 20)}<span>${esc(st.note)}</span></div>` : '');
 
 /* ============================== arranque ============================== */
 async function boot() {
@@ -277,22 +309,23 @@ function render() {
       ${tabs.map((t) => `<button class="tab ${t.id === S.tab ? 'on' : ''}" data-act="tab" data-tab="${t.id}">
         <span class="ti">${t.icon}</span><span>${t.label}</span>${t.badge ? `<b class="badge">${t.badge}</b>` : ''}</button>`).join('')}
     </nav>`;
+  const hd = $('header'); if (hd) document.documentElement.style.setProperty('--hh', hd.offsetHeight + 'px');
   if (focusId) { const f = document.getElementById(focusId); if (f) { f.focus(); try { f.setSelectionRange(sel, sel); } catch (e) { /* */ } } }
 }
 
-const splash = (msg, withOut) => `<div class="center"><div class="logo">🥪</div><p class="big">${esc(msg)}</p>
+const splash = (msg, withOut) => `<div class="center">${LOGO}<p class="big">${esc(msg)}</p>
   ${withOut ? '<button class="btn ghost" data-act="signout">Salir</button>' : ''}</div>`;
 
 const loginView = () => `<div class="center">
-  <div class="logo">🥪</div>
-  <h1>Puesto Elisa</h1>
+  ${LOGO}
+  <h1>Los Secretos de Elisa</h1>
   <p class="muted">Avisa lo que falta, prepara lo que toca y compra a tiempo.</p>
   <button class="btn primary xl" data-act="signin">Entrar con Google</button>
   <p class="muted small">Usa tu cuenta de Gmail. La primera vez, la señora Elisa tiene que aprobarte.</p>
 </div>`;
 
 const pendingView = () => `<div class="center">
-  <div class="logo">⏳</div>
+  ${LOGO}
   <h1>Esperando aprobación</h1>
   <p class="big">Hola ${esc((S.me.name || '').split(' ')[0])}. Ya entraste con <b>${esc(S.me.email)}</b>.</p>
   <p class="muted">La señora Elisa tiene que aprobar tu cuenta y elegir tu perfil. Esta pantalla se abre sola cuando lo haga.</p>
@@ -304,25 +337,25 @@ function tabsFor() {
   if (r === 'admin') {
     const buy = buyItems().todo.length; const pend = Object.values(S.users).filter((u) => u.role === 'pending').length;
     return [
-      { id: 'comprar', label: 'Comprar', icon: '🛒', badge: buy },
-      { id: 'preparar', label: 'Preparar', icon: '🍳', badge: prepItems().length },
-      { id: 'conteo', label: 'Llegadas', icon: '🔢' },
-      { id: 'avisos', label: 'Avisos', icon: '🔔', badge: overdueItems().length },
-      { id: 'ajustes', label: 'Más', icon: '⚙️', badge: pend },
+      { id: 'comprar', label: 'Comprar', icon: ico('cart'), badge: buy },
+      { id: 'preparar', label: 'Preparar', icon: ico('chef'), badge: prepItems().length },
+      { id: 'conteo', label: 'Llegadas', icon: ico('truck') },
+      { id: 'avisos', label: 'Avisos', icon: ico('bell'), badge: overdueItems().length },
+      { id: 'ajustes', label: 'Más', icon: ico('sliders'), badge: pend },
     ];
   }
   if (r === 'produccion') {
     return [
-      { id: 'hoy', label: 'Para hoy', icon: '📋', badge: todayItems().length },
-      { id: 'reporte', label: 'Mi materia prima', icon: '🥬' },
-      { id: 'ajustes', label: 'Más', icon: '⚙️' },
+      { id: 'hoy', label: 'Para hoy', icon: ico('calcheck'), badge: todayItems().length },
+      { id: 'reporte', label: 'Mi materia prima', icon: ico('basket') },
+      { id: 'ajustes', label: 'Más', icon: ico('sliders') },
     ];
   }
   return [
-    { id: 'reporte', label: 'Reporte', icon: '📝' },
-    { id: 'conteo', label: 'Llegadas', icon: '🔢' },
-    { id: 'avisos', label: 'Avisos', icon: '🔔', badge: overdueItems().length },
-    { id: 'ajustes', label: 'Más', icon: '⚙️' },
+    { id: 'reporte', label: 'Reporte', icon: ico('clipboard') },
+    { id: 'conteo', label: 'Llegadas', icon: ico('truck') },
+    { id: 'avisos', label: 'Avisos', icon: ico('bell'), badge: overdueItems().length },
+    { id: 'ajustes', label: 'Más', icon: ico('sliders') },
   ];
 }
 
@@ -331,7 +364,7 @@ function headerView() {
     admin: 'Adquisición', puesto1: 'Puesto 1', puesto2: 'Puesto 2', produccion: 'Producción',
   };
   const call = !isAdmin()
-    ? `<button class="call" data-act="call">📞 <span>Llamar a la señora Elisa</span></button>` : '';
+    ? `<button class="call" data-act="call">${ico('phone', 18)} <span>Llamar a Elisa</span></button>` : '';
   return `<header><div class="ht"><div class="hn">${titles[role()]}</div>
     <div class="hs">${esc((S.me.name || '').split(' ')[0])}</div></div>${call}</header>`;
 }
@@ -342,9 +375,9 @@ function banners() {
   const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   if (B.mode === 'firebase') {
     if (ios && !standalone) {
-      out += `<div class="banner">📲 Para recibir avisos en el iPhone: toca <b>Compartir</b> y luego <b>Agregar a pantalla de inicio</b>. Abre la app desde ese ícono.</div>`;
+      out += `<div class="banner">${ico('share', 22)}<span>Para recibir avisos en el iPhone: toca <b>Compartir</b> y luego <b>Agregar a pantalla de inicio</b>. Abre la app desde ese ícono.</span></div>`;
     } else if (S.push === 'default') {
-      out += `<div class="banner"><span>🔔 Activa los avisos para enterarte al instante.</span><button class="btn small primary" data-act="push">Activar avisos</button></div>`;
+      out += `<div class="banner">${ico('bell', 22)}<span>Activa los avisos para enterarte al instante.</span><button class="btn small primary" data-act="push">Activar avisos</button></div>`;
     }
   }
   return out;
@@ -379,7 +412,7 @@ function itemRow(p) {
   const st = getSt(p.id); const s = st.state || 'ok';
   const det = detailLine(p, st);
   const sent = s !== 'ok' && needsSend(p) && isSent(st)
-    ? `<div class="sentb">📦 Producción envió a las ${hhmm(st.sentAt)}. Marca “Sí hay” cuando llegue.</div>` : '';
+    ? `<div class="sentb">${ico('box', 16)} Producción envió a las ${hhmm(st.sentAt)}. Marca “Sí hay” cuando llegue.</div>` : '';
   return `<div class="item s-${s}" data-id="${p.id}">
     <div class="im" data-act="open" data-id="${p.id}">
       <div class="nm">${esc(p.name)}</div>
@@ -387,7 +420,7 @@ function itemRow(p) {
     </div>
     <div class="sts">${['out', 'low', 'ok'].map((k) =>
       `<button class="st ${k} ${s === k ? 'on' : ''}" data-act="state" data-id="${p.id}" data-s="${k}" aria-label="${STATES[k].label}">
-        <i>${STATES[k].sym}</i><span>${STATES[k].label}</span></button>`).join('')}</div>
+        <i>${stIcon(k)}</i><span>${STATES[k].label}</span></button>`).join('')}</div>
   </div>`;
 }
 
@@ -397,10 +430,12 @@ function reporteView(owner) {
   if (!mine.length) {
     return `<p class="muted pad">Todavía no hay productos para ${esc(OWNERS[owner] || 'este perfil')}. La señora Elisa los agrega desde Más → Catálogo.</p>`;
   }
+  const filters = role() !== 'produccion'; // Producción no usa buscador ni filtro
   let list = mine;
-  const q = norm(S.q.trim());
+  const q = filters ? norm(S.q.trim()) : '';
+  const only = filters && S.only;
   if (q) list = list.filter((p) => norm(p.name).includes(q) || norm(p.section).includes(q));
-  if (S.only) list = list.filter((p) => stateOf(p.id) !== 'ok');
+  if (only) list = list.filter((p) => stateOf(p.id) !== 'ok');
   const today = dayKey();
   const rep = Object.values(S.reports).filter((r) => r.owner === owner && r.date === today)
     .sort((a, b) => b.at - a.at)[0];
@@ -409,22 +444,23 @@ function reporteView(owner) {
   const secs = SECTIONS.filter((s) => bySec[s]);
   Object.keys(bySec).forEach((s) => { if (!secs.includes(s)) secs.push(s); });
   const notOk = mine.filter((p) => stateOf(p.id) !== 'ok').length;
-  const forceOpen = !!q || S.only;
+  const forceOpen = !!q || only;
   const accordion = secs.map((s) => {
     const items = bySec[s];
     const out = items.filter((p) => stateOf(p.id) === 'out').length;
     const low = items.filter((p) => stateOf(p.id) === 'low').length;
     const open = forceOpen || S.open[s];
-    return `<button class="acc ${open ? 'on' : ''}" data-act="sec" data-sec="${esc(s)}">
+    return `<section class="sw ${open ? 'open' : ''}"><button class="acc ${open ? 'on' : ''}" data-act="sec" data-sec="${esc(s)}">
       <span class="at">${esc(s)}</span>
       <span class="ac">${out ? `<b class="dot out">${out}</b>` : ''}${low ? `<b class="dot low">${low}</b>` : ''}<em>${items.length}</em></span>
-      <span class="car">▾</span></button>${open ? `<div class="accb">${items.map(itemRow).join('')}</div>` : ''}`;
+      <span class="car">${ico('down', 20)}</span></button>${open ? `<div class="accb">${items.map(itemRow).join('')}
+      ${forceOpen ? '' : `<button class="accclose" data-act="sec" data-sec="${esc(s)}">${ico('up', 18)} Cerrar ${esc(s)}</button>`}</div>` : ''}</section>`;
   }).join('');
-  return `${rep ? `<div class="done">✓ Reporte enviado hoy a las ${hhmm(rep.at)} por ${esc((rep.byName || '').split(' ')[0])}</div>` : ''}
-    ${filterBar()}
+  return `${rep ? `<div class="done">${ico('check', 18)} Reporte enviado hoy a las ${hhmm(rep.at)} por ${esc((rep.byName || '').split(' ')[0])}</div>` : ''}
+    ${filters ? filterBar() : ''}
     <div class="hint pad-s">${notOk ? `${notOk} producto(s) sin estar en verde` : 'Todo en verde'}. Abre una sección y toca solo lo que no está bien.</div>
     ${accordion || '<p class="muted pad">No hay resultados.</p>'}
-    <div class="finish"><button class="btn primary xl" data-act="finish" data-owner="${owner}">✓ Terminé mi reporte</button>
+    <div class="finish"><button class="btn primary xl" data-act="finish" data-owner="${owner}">${ico('check', 22)} Terminé mi reporte</button>
     <p class="muted small">Lo que dejaste en verde queda confirmado como “Sí hay” por hoy.</p></div>`;
 }
 
@@ -490,7 +526,7 @@ function renderSheet() {
     <div class="panel"><div class="grab"></div>
       <h3>${esc(p.name)}</h3>
       <div class="sts big">${['out', 'low', 'ok'].map((k) =>
-        `<button class="st ${k} ${z.state === k ? 'on' : ''}" data-act="sstate" data-s="${k}"><i>${STATES[k].sym}</i><span>${STATES[k].label}</span></button>`).join('')}</div>
+        `<button class="st ${k} ${z.state === k ? 'on' : ''}" data-act="sstate" data-s="${k}"><i>${stIcon(k)}</i><span>${STATES[k].label}</span></button>`).join('')}</div>
       <div class="lbl">Cantidad <span class="muted">(opcional)</span></div>
       ${chips}
       <div id="qwrap">${qtyWidget(p, z.mode, z.qty)}</div>
@@ -560,17 +596,17 @@ function hoyView() {
     ${items.map((p) => {
     const st = getSt(p.id); const s = st.state;
     return `<div class="card s-${s}"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}
-      <span class="pill ${s}">${STATES[s].sym} ${STATES[s].label}</span></div>
+      <span class="pill ${s}">${STATES[s].label}</span></div>
       ${noteBlock(st)}
       <div class="sb">${detailLine(p, st, false)}${st.since ? ` · desde ${ago(st.since)}` : ''}</div>
       ${p.camino === 'B' ? '<div class="note-b">Lo prepara la señora Elisa. Tú lo envías ya hecho.</div>' : ''}
       ${prepBlock(p)}
-      <button class="btn done-btn" data-act="sent" data-id="${p.id}">📦 Ya envié</button></div>`;
-  }).join('') || '<p class="muted pad">Nada que preparar por ahora. ✅</p>'}
+      <button class="btn done-btn" data-act="sent" data-id="${p.id}">${ico('box', 22)} Ya envié</button></div>`;
+  }).join('') || '<p class="muted pad">Nada que preparar por ahora.</p>'}
     ${sent.length ? `<h2 class="sec">Ya enviado hoy</h2>${sent.map((p) => {
     const st = getSt(p.id);
     return `<div class="card slim bought"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}
-      <span class="pill ok">📦 ${hhmm(st.sentAt)}</span></div>
+      <span class="pill ok">${ico('box', 14)} ${hhmm(st.sentAt)}</span></div>
       <button class="link" data-act="unsent" data-id="${p.id}">No lo envié (deshacer)</button></div>`;
   }).join('')}` : ''}
     ${left.length ? `<h2 class="sec">Lo que sobró en el puesto (aprox.)</h2><div class="card slim">${left.map(({ p, it, date }) =>
@@ -588,14 +624,14 @@ function avisosView() {
     ${od.map((p) => {
     const st = getSt(p.id);
     return `<div class="card s-out"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}
-      <span class="pill out">⚠ Sin enviar</span></div>
+      <span class="pill out">${ico('alert', 14)} Sin enviar</span></div>
       ${noteBlock(st)}
       <div class="sb">${detailLine(p, st, false)}${st.since ? ` · pedido ${ago(st.since)}` : ''}</div></div>`;
-  }).join('') || '<p class="muted pad">Nada pendiente. Todo lo pedido se envió o todavía está a tiempo. ✅</p>'}
+  }).join('') || '<p class="muted pad">Nada pendiente. Todo lo pedido se envió o todavía está a tiempo.</p>'}
     ${sent.length ? `<h2 class="sec">Producción ya envió hoy</h2>${sent.map((p) => {
     const st = getSt(p.id);
     return `<div class="card slim bought"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}
-      <span class="pill ok">📦 ${hhmm(st.sentAt)}</span></div>
+      <span class="pill ok">${ico('box', 14)} ${hhmm(st.sentAt)}</span></div>
       ${!isAdmin() ? '<div class="hint">Confírmalo en Reporte con “Sí hay” cuando llegue.</div>' : ''}</div>`;
   }).join('')}` : ''}`;
 }
@@ -619,7 +655,7 @@ function buyCard(p, label) {
   const st = getSt(p.id); const s = st.state; const iv = avgInterval(st);
   const last = (st.buyDates || []).slice(-1)[0];
   return `<div class="card s-${s}"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}
-    <span class="pill ${s}">${STATES[s].sym} ${STATES[s].label}</span></div>
+    <span class="pill ${s}">${STATES[s].label}</span></div>
     ${noteBlock(st)}
     <div class="sb">${detailLine(p, st, false) || ''}</div>
     <div class="meta">${st.since ? `En ${s === 'out' ? 'falta' : 'poco'} ${ago(st.since)}.` : ''}
@@ -637,17 +673,17 @@ function reportsLine() {
     const r = Object.values(S.reports).filter((x) => x.owner === o && x.date === today).sort((a, b) => b.at - a.at)[0];
     return r ? `${OWNERS[o]}: reportó a las ${hhmm(r.at)}` : null;
   }).filter(Boolean);
-  return bits.length ? `<div class="done">✓ ${bits.join(' · ')}</div>` : '<div class="hint pad-s">Hoy todavía nadie terminó su reporte.</div>';
+  return bits.length ? `<div class="done">${ico('check', 18)} ${bits.join(' · ')}</div>` : '<div class="hint pad-s">Hoy todavía nadie terminó su reporte.</div>';
 }
 function comprarView() {
   if (!S.loaded.status) return '<p class="muted pad">Cargando…</p>';
   const { todo, done, info } = buyItems();
   return `${reportsLine()}${ownerChips()}
     <div class="lead"><b>${todo.length}</b> por comprar</div>
-    ${todo.map((p) => buyCard(p, 'Comprado')).join('') || '<p class="muted pad">Nada por comprar. ✅</p>'}
+    ${todo.map((p) => buyCard(p, 'Comprado')).join('') || '<p class="muted pad">Nada por comprar.</p>'}
     ${info.length ? `<h2 class="sec">Lo prepara Producción (solo aviso)</h2>${info.map((p) => {
     const st = getSt(p.id);
-    return `<div class="card slim s-${st.state}"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}<span class="pill ${st.state}">${STATES[st.state].sym} ${STATES[st.state].label}</span></div>${noteBlock(st)}<div class="sb">${detailLine(p, st, false)}</div></div>`;
+    return `<div class="card slim s-${st.state}"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}<span class="pill ${st.state}">${STATES[st.state].label}</span></div>${noteBlock(st)}<div class="sb">${detailLine(p, st, false)}</div></div>`;
   }).join('')}` : ''}
     ${done.length ? `<h2 class="sec">Comprado, esperando que lo confirmen</h2>${done.map((p) => {
     const st = getSt(p.id);
@@ -662,7 +698,7 @@ function prepararView() {
     return `${buyCard(p, 'Preparado')}${p.id === 'pollo' ? `<div class="prep standalone"><b>Para el pollo:</b>
       <div class="chips">${['Pechugas', 'Kion', 'Sal'].map((i) => `<span>${i}</span>`).join('')}</div>
       <div class="hint">Si falta alguno, anótalo en “Comprar” desde Producción o cómpralo directo.</div></div>` : (pr ? '' : '')}`;
-  }).join('') || '<p class="muted pad">Nada por preparar. ✅</p>'}`;
+  }).join('') || '<p class="muted pad">Nada por preparar.</p>'}`;
 }
 
 /* ---------- Llegadas: conteo de empanadas, pan y sobrantes ---------- */
@@ -682,9 +718,9 @@ function countRow(p, owner, doc, today) {
   if (exp !== null) {
     const diff = it.arrived !== null && it.arrived !== undefined && it.arrived !== exp;
     llego = `<div class="llw">${it.arrived === null || it.arrived === undefined
-      ? `<button class="ll" data-act="arrive-ok" data-pid="${p.id}" data-o="${owner}">✓ Llegó</button>`
+      ? `<button class="ll" data-act="arrive-ok" data-pid="${p.id}" data-o="${owner}">${ico('check', 16)} Llegó</button>`
       : `<button class="ll on ${diff ? 'diff' : ''}" data-act="arrive-edit" data-pid="${p.id}">${it.arrived}${diff ? `<small>/${exp}</small>` : ''}</button>`}
-      <button class="ex ${open ? 'on' : ''}" data-act="arrive-edit" data-pid="${p.id}" aria-label="Ajustar cantidad">▾</button></div>`;
+      <button class="ex ${open ? 'on' : ''}" data-act="arrive-edit" data-pid="${p.id}" aria-label="Ajustar cantidad">${ico('down', 18)}</button></div>`;
   } else {
     llego = stepperCnt(p.id, 'arrived', it.arrived, owner);
   }
@@ -732,8 +768,8 @@ function conteoView() {
   return `${isAdmin() ? `<div class="chipsrow">${['p1', 'p2'].map((o) =>
     `<button class="fchip ${S.countOwner === o ? 'on' : ''}" data-act="cowner" data-o="${o}">${OWNERS[o]}</button>`).join('')}</div>` : ''}
     <div class="lead">Hoy, ${today}</div>
-    ${pendingAll.length ? `<div class="pad-s"><button class="btn primary xl" data-act="arrive-all" data-o="${owner}">✓ Llegó todo lo de hoy</button>
-      <p class="hint">Si algo llegó de menos o de más, toca la flecha ▾ de ese producto.</p></div>` : ''}
+    ${pendingAll.length ? `<div class="pad-s"><button class="btn primary xl" data-act="arrive-all" data-o="${owner}">${ico('check', 22)} Llegó todo lo de hoy</button>
+      <p class="hint">Si algo llegó de menos o de más, toca la flecha de ese producto.</p></div>` : ''}
     ${Object.keys(groups).map((g) => table(COUNT_TITLES[g] || g, groups[g])).join('') || '<p class="muted pad">No hay productos con conteo.</p>'}
     ${leftTable}
     ${hist}`;
@@ -793,7 +829,7 @@ function ajustesView() {
     <div class="card slim"><label class="lbl">Hora límite para que Producción envíe (si no, sale en Avisos)</label>
       <input id="deadline" type="time" class="inp" value="${esc(S.config.sendDeadline || '07:00')}">
       <button class="btn small primary" data-act="savedeadline">Guardar hora</button></div>
-    <button class="btn ghost" data-act="personas">👥 Personas${Object.values(S.users).filter((u) => u.role === 'pending').length ? ` (${Object.values(S.users).filter((u) => u.role === 'pending').length} por aprobar)` : ''}</button>
+    <button class="btn ghost" data-act="personas">${ico('users', 20)} Personas${Object.values(S.users).filter((u) => u.role === 'pending').length ? ` (${Object.values(S.users).filter((u) => u.role === 'pending').length} por aprobar)` : ''}</button>
     <button class="btn ghost" data-act="catalogo">Catálogo de productos</button>` : ''}
   <div class="pad"><button class="btn ghost" data-act="signout">Cerrar sesión</button></div>
   <p class="muted small pad">Versión 1</p>`;
@@ -887,7 +923,7 @@ async function turnOnPush() {
   if (t && !['unsupported', 'denied', 'default', 'error'].includes(t)) {
     const cur = (S.me.tokens || []).filter((x) => x !== t);
     await B.set('users/' + S.user.uid, { tokens: [...cur, t].slice(-5) });
-    toast('Avisos activados ✅');
+    toast('Avisos activados');
   } else if (t === 'denied') toast('Los avisos quedaron bloqueados.');
   render();
 }
@@ -1055,6 +1091,8 @@ document.addEventListener('change', async (e) => {
   }
 });
 
+// Sin menú de "copiar" al mantener presionado (salvo en los campos de texto).
+document.addEventListener('contextmenu', (e) => { if (!e.target.closest('input,textarea')) e.preventDefault(); });
 // Sin zoom: ni al tocar rápido ni al pellizcar.
 ['gesturestart', 'gesturechange', 'gestureend'].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault()));
 

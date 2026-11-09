@@ -16,18 +16,23 @@ service cloud.firestore {
     }
     function isAdmin() { return active() && userDoc().role == 'admin'; }
 
-    // El correo de la administradora NO está en el código: vive en el documento config/app.
+    // El correo de la administradora NO está en el código: vive en Firestore, en config/private
+    // (nadie puede leer ese documento desde la app) o, si no existe, en config/app.
     function isAdminEmail() {
-      return exists(/databases/$(database)/documents/config/app)
-        && get(/databases/$(database)/documents/config/app).data.adminEmail == request.auth.token.email;
+      return (exists(/databases/$(database)/documents/config/private)
+          && get(/databases/$(database)/documents/config/private).data.adminEmail == request.auth.token.email)
+        || (exists(/databases/$(database)/documents/config/app)
+          && get(/databases/$(database)/documents/config/app).data.get('adminEmail', '') == request.auth.token.email);
     }
 
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
       // Cada persona crea su propio documento: "pending", o "admin" solo si su correo es el de Elisa.
-      allow create: if signedIn() && request.auth.uid == uid && (
-        request.resource.data.role == 'pending'
-        || (request.resource.data.role == 'admin' && isAdminEmail()));
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['email', 'name', 'photo', 'createdAt', 'tokens', 'role'])
+        && request.resource.data.email == request.auth.token.email
+        && (request.resource.data.role == 'pending'
+            || (request.resource.data.role == 'admin' && isAdminEmail()));
       // Cada quien solo puede cambiar sus datos de contacto y sus avisos; el perfil lo cambia solo Elisa.
       allow update: if isAdmin()
         || (signedIn() && request.auth.uid == uid
@@ -36,26 +41,48 @@ service cloud.firestore {
       allow delete: if isAdmin() && request.auth.uid != uid;
     }
 
-    match /config/{doc} {
+    match /config/app {
       allow read: if active();
       allow write: if isAdmin();
     }
+    // Datos privados (correo de la administradora): solo las reglas pueden leerlos.
+    match /config/private {
+      allow read, write: if false;
+    }
+
     match /products/{id} {
       allow read: if active();
       allow write: if isAdmin();
     }
+
     match /status/{id} {
-      allow read, write: if active();
+      allow read: if active();
+      allow create, update: if active()
+        && request.resource.data.keys().hasOnly(['state', 'mode', 'qty', 'note', 'by', 'byName', 'at', 'since',
+             'boughtAt', 'buyDates', 'sentAt', 'sentBy', 'sentByName'])
+        && (!('state' in request.resource.data) || request.resource.data.state in ['ok', 'low', 'out'])
+        && (!('note' in request.resource.data) || request.resource.data.note == null
+            || (request.resource.data.note is string && request.resource.data.note.size() <= 300));
     }
+
     match /reports/{id} {
-      allow read, create: if active();
+      allow read: if active();
+      allow create: if active() && request.resource.data.by == request.auth.uid;
     }
+
     match /counts/{id} {
-      allow read, write: if active();
+      allow read: if active();
+      allow create, update: if active()
+        && request.resource.data.keys().hasOnly(['date', 'owner', 'items']);
     }
+
     // Cola de avisos: los celulares solo la escriben; la lee el programador (que no pasa por estas reglas).
     match /alerts/{id} {
-      allow create: if active();
+      allow create: if active()
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.sent == false
+        && request.resource.data.keys().hasOnly(['productId', 'name', 'owner', 'camino', 'state', 'to', 'qty',
+             'note', 'by', 'byName', 'createdAt', 'sent']);
     }
   }
 }

@@ -3,11 +3,42 @@
 import { build } from 'esbuild';
 import { cpSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import JavaScriptObfuscator from 'javascript-obfuscator';
 
 const test = process.argv.includes('--test');
 const out = test ? 'public-test' : 'public';
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
+
+// Ofusca solo el código propio de la app (no las librerías de Firebase): cambia los nombres por
+// códigos, esconde los textos y desordena la lógica. No es imposible de leer, pero sí muy incómodo.
+const obfuscate = {
+  name: 'ofuscar',
+  setup(b) {
+    b.onLoad({ filter: /[\\/]src[\\/][^\\/]+\.js$/ }, (args) => {
+      const code = readFileSync(args.path, 'utf8');
+      if (/backend-mock|firebase-config/.test(args.path)) return { contents: code, loader: 'js' };
+      const out = JavaScriptObfuscator.obfuscate(code, {
+        compact: true,
+        identifierNamesGenerator: 'hexadecimal',
+        renameGlobals: false,
+        stringArray: true,
+        stringArrayThreshold: 0.85,
+        stringArrayEncoding: ['base64'],
+        stringArrayRotate: true,
+        stringArrayShuffle: true,
+        splitStrings: true,
+        splitStringsChunkLength: 8,
+        numbersToExpressions: true,
+        simplify: true,
+        transformObjectKeys: false, // no tocar los nombres de campos que se guardan en Firestore
+        unicodeEscapeSequence: false,
+      }).getObfuscatedCode();
+      return { contents: out, loader: 'js' };
+    });
+  },
+};
 
 await build({
   entryPoints: ['src/app.js'],
@@ -17,6 +48,7 @@ await build({
   target: ['es2020', 'safari15', 'chrome100'],
   outfile: `${out}/app.js`,
   alias: { backend: resolve(`src/backend-${test ? 'mock' : 'firebase'}.js`) },
+  plugins: test ? [obfuscate] : [obfuscate],
   logLevel: 'info',
 });
 for (const f of readdirSync('src')) {

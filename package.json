@@ -11,6 +11,7 @@
     "firebase": "^11.0.0"
   },
   "devDependencies": {
-    "esbuild": "^0.24.0"
+    "esbuild": "^0.24.0",
+    "javascript-obfuscator": "^4.2.2"
   }
 }

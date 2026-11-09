@@ -1,5 +1,5 @@
 // Service worker: guarda la app para abrir rápido/sin internet y muestra los avisos push.
-const CACHE = 'puesto-elisa-v1';
+const CACHE = 'secretos-elisa-v2';
 const SHELL = ['./', 'index.html', 'app.js', 'style.css', 'manifest.webmanifest', 'icon-192.png'];
 
 self.addEventListener('install', (e) => {
@@ -26,7 +26,7 @@ self.addEventListener('push', (e) => {
     d = Object.assign({}, j.notification || {}, j.data || {});
   } catch (_) { d = { body: e.data ? e.data.text() : '' }; }
   const urgent = d.urgent === '1' || d.urgent === 1;
-  e.waitUntil(self.registration.showNotification(d.title || 'Puesto Elisa', {
+  e.waitUntil(self.registration.showNotification(d.title || 'Los Secretos de Elisa', {
     body: d.body || '',
     icon: 'icon-192.png',
     badge: 'icon-192.png',
