@@ -68,7 +68,7 @@ const S = {
   q: '', only: false, ownerFilter: 'all', prepFilter: 'all',
   sheet: null, loaded: {},
   font: store.get('font', 1), sound: store.get('sound', true), theme: store.get('theme', 'auto'),
-  push: 'unknown', deferredInstall: null, countOwner: 'p1', open: {}, cntOpen: {},
+  errs: {}, push: 'unknown', deferredInstall: null, countOwner: 'p1', open: {}, cntOpen: {},
 };
 let unsubs = [];
 let prevStatus = null;
@@ -157,6 +157,7 @@ if ('serviceWorker' in navigator) {
 }
 async function boot() {
   applyFont(); applyTheme();
+  B.onError = (path, e) => { S.errs[path] = (e && (e.code || e.message)) || 'error'; render(); };
   await B.init();
   B.onAuth(async (u) => {
     stopWatchers();
@@ -240,6 +241,10 @@ function detectAlerts(prev, now) {
   for (const id of Object.keys(now)) {
     const a = (prev[id] || {}).state || 'ok'; const n = now[id].state || 'ok';
     const p = S.products[id];
+    if (p && p.leftOnly && now[id].leftAt && now[id].leftAt !== (prev[id] || {}).leftAt && (role() === 'produccion' || isAdmin())
+      && now[id].leftBy !== (S.me.name || '')) {
+      toast(`Sobró: ${p.name} · ${fmtQty(p, { mode: now[id].leftMode, qty: now[id].left })}`, true); beep();
+    }
     if (!p || n === a || now[id].by === S.user.uid) continue;
     const relevant = isAdmin() || (role() === 'produccion' && (p.camino === 'A' || p.camino === 'B') && p.owner !== 'prod');
     if (!relevant && !mine) continue;
@@ -405,6 +410,9 @@ function headerView() {
 
 function banners() {
   let out = '';
+  Object.entries(S.errs || {}).forEach(([k, v]) => {
+    out += `<div class="banner err">${ico('alert', 22)}<span>No se pudo leer <b>${esc(k)}</b> (${esc(v)}). Avísale a Sebastián.</span></div>`;
+  });
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   if (B.mode === 'firebase') {
@@ -672,8 +680,13 @@ function llegadasData(owner, date) {
       const ref = left !== null ? left : (has(it.arrived) ? it.arrived : null);
       const buy = p.minStock && ref !== null && ref < p.minStock ? ref : null;
       rows.push({ p, arrived: it.arrived, exp, short, extra, left, buy });
-    } else if (p.leftOnly && has(it.left)) {
-      waters.push({ p, text: fmtQty(p, { mode: it.leftMode, qty: it.left }) });
+    } else if (p.leftOnly) {
+      const st = getSt(p.id); const stToday = has(st.left) && st.leftAt && dayKey(st.leftAt) === date;
+      if (date === dayKey() && stToday && (!has(it.left) || (st.leftAt || 0) >= (it.at || 0))) {
+        waters.push({ p, text: fmtQty(p, { mode: st.leftMode, qty: st.left }) });
+      } else if (has(it.left)) {
+        waters.push({ p, text: fmtQty(p, { mode: it.leftMode, qty: it.left }) });
+      }
     }
   });
   return { doc, rows, waters };
@@ -711,7 +724,15 @@ function llegadasHtml(who) {
 function avisosView() {
   if (!S.loaded.status) return '<p class="muted pad">Cargando…</p>';
   if (role() === 'produccion') {
-    return `<div class="lead"><span><strong>Avisos de Puesto 1</strong><small>Lo que sobró de las aguas y el desayuno</small></span></div>${llegadasHtml('prod')}`;
+    const todo = todayItems(); const sentP = sentToday();
+    return `<div class="lead"><span><strong>Avisos de Puesto 1</strong><small>Sobrante de aguas y desayuno, y lo que piden</small></span></div>${llegadasHtml('prod')}
+    <h2 class="sec">Lo que pide Puesto 1</h2>
+    ${todo.map((p) => {
+      const st = getSt(p.id);
+      return `<div class="card slim s-${st.state}"><div class="ct"><div class="nm">${esc(p.name)}</div><span class="pill ${st.state}">${STATES[st.state].label}</span></div>
+        ${noteBlock(st)}<div class="sb">${detailLine(p, st, false)}${st.since ? ` · desde ${ago(st.since)}` : ''}</div></div>`;
+    }).join('') || '<p class="muted small pad-s">Nada pendiente de enviar.</p>'}
+    ${sentP.length ? `<div class="hint pad-s">Ya enviaste hoy: ${sentP.map((p) => esc(p.name)).join(', ')}.</div>` : ''}`;
   }
   const od = overdueItems(); const sent = sentToday();
   const dl = String(S.config.sendDeadline || '07:00');
@@ -907,8 +928,17 @@ async function saveCountMany(owner, patches) {
     sent[pid] = { ...patch, ...meta };
   });
   S.counts[id] = { ...cur, date, owner, items };
+  // El sobrante de aguas y desayuno también se deja en "status", que llega al instante a Producción.
+  const lefts = Object.entries(patches).filter(([pid, patch]) => 'left' in patch && S.products[pid] && S.products[pid].leftOnly);
+  lefts.forEach(([pid, patch]) => {
+    S.status[pid] = { ...getSt(pid), left: patch.left, leftMode: patch.leftMode ?? null, leftAt: meta.at };
+  });
   render();
-  try { await B.set('counts/' + id, { date, owner, items: sent }); } catch (e) { toast('No se pudo guardar el conteo.'); }
+  try { await B.set('counts/' + id, { date, owner, items: sent }); } catch (e) { toast('No se pudo guardar el conteo: ' + (e.code || e.message || e), true); }
+  for (const [pid, patch] of lefts) {
+    try { await B.set('status/' + pid, { left: patch.left, leftMode: patch.leftMode ?? null, leftAt: meta.at, leftBy: S.me.name || '' }); }
+    catch (e) { toast('No se pudo avisar el sobrante: ' + (e.code || e.message || e), true); }
+  }
 }
 const saveCountItem = (owner, pid, patch) => saveCountMany(owner, { [pid]: patch });
 
@@ -958,7 +988,7 @@ function ajustesView() {
     <button class="btn ghost" data-act="personas">${ico('users', 20)} Personas${Object.values(S.users).filter((u) => u.role === 'pending').length ? ` (${Object.values(S.users).filter((u) => u.role === 'pending').length} por aprobar)` : ''}</button>
     <button class="btn ghost" data-act="catalogo">Catálogo de productos</button>` : ''}
   <div class="pad"><button class="btn ghost" data-act="signout">Cerrar sesión</button></div>
-  <p class="muted small pad">Versión ${typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'de prueba'}</p>`;
+  <p class="muted small pad">Versión ${typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'de prueba'} · llegadas visibles: ${Object.keys(S.counts).length}</p>`;
 }
 
 /* ---------- Catálogo (solo Elisa) ---------- */

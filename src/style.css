@@ -217,3 +217,5 @@ textarea{resize:none}
   opacity:0;transform:translateY(12px);pointer-events:none;transition:.2s;max-width:700px;margin:0 auto;box-shadow:0 8px 24px rgba(20,28,30,.25)}
 #toast.show{opacity:1;transform:none;pointer-events:auto}
 #toast button{color:var(--accent);font-weight:700}
+
+.banner.err{background:var(--out-bg);color:var(--out)}

@@ -59,7 +59,7 @@ service cloud.firestore {
       allow read: if active();
       allow create, update: if active()
         && request.resource.data.keys().hasOnly(['state', 'mode', 'qty', 'note', 'by', 'byName', 'at', 'since',
-             'boughtAt', 'buyDates', 'sentAt', 'sentBy', 'sentByName'])
+             'boughtAt', 'buyDates', 'sentAt', 'sentBy', 'sentByName', 'left', 'leftMode', 'leftAt', 'leftBy'])
         && (!('state' in request.resource.data) || request.resource.data.state in ['ok', 'low', 'out'])
         && (!('note' in request.resource.data) || request.resource.data.note == null
             || (request.resource.data.note is string && request.resource.data.note.size() <= 300));

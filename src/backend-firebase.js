@@ -59,7 +59,7 @@ export const B = {
   // Colección → {id: datos}. Documento → datos o null.
   watch(path, cb, opts = {}) {
     const parts = path.split('/');
-    const onErr = (e) => console.warn('watch', path, e.code || e);
+    const onErr = (e) => { console.warn('watch', path, e.code || e); if (B.onError) B.onError(path, e); };
     if (parts.length % 2 === 0) {
       return onSnapshot(doc(db, path), (s) => cb(s.exists() ? s.data() : null, s.metadata.fromCache), onErr);
     }
