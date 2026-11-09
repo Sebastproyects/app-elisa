@@ -109,7 +109,7 @@ function fmtQty(p, st) {
 function detailLine(p, st, withNote = true) {
   const bits = [];
   const q = fmtQty(p, st); if (q) bits.push(q);
-  if (st.note && withNote) bits.push('“' + esc(st.note) + '”');
+  if (noteOf(st) && withNote) bits.push('“' + esc(noteOf(st)) + '”');
   if (st.byName && st.at) bits.push(`${esc(st.byName.split(' ')[0])}, ${ago(st.at)}`);
   return bits.join(' · ');
 }
@@ -147,9 +147,14 @@ function overdueItems() {
     && (getSt(p.id).since || 0) < d0 + PROD_START_MIN * 60000);
 }
 const sentToday = () => prodList().filter((p) => needsSend(p) && isSent(getSt(p.id)) && getSt(p.id).sentAt >= day0());
-const noteBlock = (st) => (st.note ? `<div class="cmt">${ico('note', 20)}<span>${esc(st.note)}</span></div>` : '');
+// Los comentarios valen solo el día en que se escribieron.
+const noteOf = (st) => (st.note && st.at && dayKey(st.at) === dayKey() ? st.note : '');
+const noteBlock = (st) => (noteOf(st) ? `<div class="cmt">${ico('note', 20)}<span>${esc(noteOf(st))}</span></div>` : '');
 
 /* ============================== arranque ============================== */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.type === 'push-sound') beep(); });
+}
 async function boot() {
   applyFont(); applyTheme();
   await B.init();
@@ -289,7 +294,7 @@ async function saveStatus(p, patch) {
     state, by: S.user.uid, byName: S.me.name || '', at: now,
     mode: patch.mode !== undefined ? patch.mode : (cur.mode ?? null),
     qty: patch.qty !== undefined ? patch.qty : (cur.qty ?? null),
-    note: patch.note !== undefined ? patch.note : (cur.note || ''),
+    note: patch.note !== undefined ? patch.note : noteOf(cur),
   };
   if (state === 'ok' && patch.qty === undefined) { d.qty = null; d.mode = null; }
   if (state === 'ok' && patch.note === undefined) d.note = '';
@@ -346,6 +351,14 @@ const pendingView = () => `<div class="center">
   <button class="btn ghost" data-act="signout">Salir</button>
 </div>`;
 
+function watersToday() {
+  const d = dayKey(); const doc = countsDoc('p1', d);
+  return doc.reportAt ? llegadasData('p1', d).waters.length : 0;
+}
+function lowBread() {
+  const d = dayKey(); const doc = countsDoc('p1', d);
+  return doc.reportAt ? llegadasData('p1', d).rows.filter((r) => r.buy !== null && r.buy !== undefined).length : 0;
+}
 function tabsFor() {
   const r = role();
   if (r === 'admin') {
@@ -354,7 +367,7 @@ function tabsFor() {
       { id: 'comprar', label: 'Comprar', icon: ico('cart'), badge: buy },
       { id: 'preparar', label: 'Preparar', icon: ico('chef'), badge: prepItems().length },
       { id: 'conteo', label: 'Llegadas', icon: ico('truck') },
-      { id: 'avisos', label: 'Avisos', icon: ico('bell'), badge: overdueItems().length },
+      { id: 'avisos', label: 'Avisos', icon: ico('bell'), badge: overdueItems().length + lowBread() },
       { id: 'ajustes', label: 'Más', icon: ico('sliders'), badge: pend },
     ];
   }
@@ -362,7 +375,7 @@ function tabsFor() {
     return [
       { id: 'hoy', label: 'Para hoy', icon: ico('calcheck'), badge: todayItems().length },
       { id: 'reporte', label: 'Mi materia prima', icon: ico('basket') },
-      { id: 'avisos', label: 'Avisos', icon: ico('bell') },
+      { id: 'avisos', label: 'Avisos', icon: ico('bell'), badge: watersToday() },
       { id: 'ajustes', label: 'Más', icon: ico('sliders') },
     ];
   }
@@ -486,7 +499,7 @@ function openSheet(id) {
   const prod = { ...p, id }; const st = getSt(id);
   S.sheet = {
     id, p: prod, state: st.state || 'ok', mode: st.mode || prod.modes[0],
-    qty: st.qty ?? null, note: st.note || '',
+    qty: st.qty ?? null, note: noteOf(st),
   };
   renderSheet();
 }
@@ -649,7 +662,10 @@ function llegadasData(owner, date) {
       const exp = expectedFor(p, date);
       const short = exp !== null && has(it.arrived) ? Math.max(0, exp - it.arrived) : 0;
       const extra = exp !== null && has(it.arrived) ? Math.max(0, it.arrived - exp) : 0;
-      rows.push({ p, arrived: it.arrived, exp, short, extra, left: has(it.left) ? it.left : null });
+      const left = has(it.left) ? it.left : null;
+      const ref = left !== null ? left : (has(it.arrived) ? it.arrived : null);
+      const buy = p.minStock && ref !== null && ref < p.minStock ? ref : null;
+      rows.push({ p, arrived: it.arrived, exp, short, extra, left, buy });
     } else if (p.leftOnly && has(it.left)) {
       waters.push({ p, text: fmtQty(p, { mode: it.leftMode, qty: it.left }) });
     }
@@ -661,6 +677,7 @@ const rowChips = (r) => {
   if (r.short > 0) c.push(`<span class="pill out">Faltaron ${r.short}</span>`);
   if (r.left) c.push(`<span class="pill low">Sobraron ${r.left}</span>`);
   if (r.extra > 0) c.push(`<span class="pill low">Llegaron ${r.extra} de más</span>`);
+  if (r.buy !== null && r.buy !== undefined) c.push('<span class="pill out">Hay que comprar</span>');
   if (!c.length) c.push('<span class="pill ok">Todo bien</span>');
   return c.join(' ');
 };
@@ -673,12 +690,15 @@ function llegadasHtml(who) {
       return `<h2 class="sec">${esc(title)}</h2><p class="muted small pad-s">Todavía no enviaron el reporte de hoy.</p>`;
     }
     const meta = `<div class="done">${ico('check', 18)} Enviado a las ${hhmm(doc.reportAt)} por ${esc((doc.reportByName || '').split(' ')[0])}</div>`;
+    const buys = who === 'admin' ? rows.filter((r) => r.buy !== null && r.buy !== undefined).map((r) =>
+      `<div class="card s-out"><div class="ct"><div class="nm">Comprar ${esc(r.p.name.toLowerCase())}</div><span class="pill out">${ico('alert', 14)} Quedan ${r.buy}</span></div>
+      <div class="sb">Quedan menos de ${r.p.minStock}. Ya deben comprar.</div></div>`).join('') : '';
     const rowsHtml = who === 'admin' ? rows.map((r) => `<div class="card slim"><div class="ct"><div class="nm">${esc(r.p.name)}</div></div>
       <div class="chips2">${rowChips(r)}</div>
       <div class="sb">Llegaron ${r.arrived ?? '—'}${r.exp !== null ? ` (esperado ${r.exp})` : ''}</div></div>`).join('') : '';
     const wHtml = waters.length ? `<h2 class="sec">Aguas y desayuno que sobraron <span class="muted">(aprox.)</span></h2><div class="card slim">${waters.map((w) =>
       `<div class="lrow"><span>${esc(w.p.name)}</span><b>${esc(w.text)}</b></div>`).join('')}</div>` : '';
-    return `<h2 class="sec">${esc(title)}</h2>${meta}${rowsHtml}${wHtml}${!rows.length && !waters.length ? '<p class="muted small pad-s">El reporte llegó vacío.</p>' : ''}`;
+    return `<h2 class="sec">${esc(title)}</h2>${meta}${buys}${rowsHtml}${wHtml}${!rows.length && !waters.length ? '<p class="muted small pad-s">El reporte llegó vacío.</p>' : ''}`;
   }).join('');
   return out;
 }
@@ -798,8 +818,8 @@ function countRow(p, owner, doc, today) {
   const who = it.at ? `<div class="who">${esc((it.byName || '').split(' ')[0])}, ${hhmm(it.at)}</div>` : '';
   return `<div class="crow2"><div class="cn"><b>${esc(shortName(p.name))}</b>${exp !== null ? `<small>llegan ${exp}</small>` : ''}</div>
     ${llego}${stepperCnt(p.id, 'left', it.left, owner, 'orange')}</div>
-    ${open && exp !== null ? `<div class="cadj"><span>Llegaron:</span>${stepperCnt(p.id, 'arrived', it.arrived ?? exp, owner)}
-      <button class="link" data-act="arrive-reset" data-pid="${p.id}" data-o="${owner}">Quitar</button></div>` : ''}${who}`;
+    ${open && exp !== null ? `<div class="cadj">${stepperCnt(p.id, 'arrived', it.arrived ?? exp, owner)}
+      <button class="okx" data-act="arrive-edit" data-pid="${p.id}" aria-label="Listo">${ico('x', 22)}</button></div>` : ''}${who}`;
 }
 
 function conteoView() {
@@ -864,6 +884,9 @@ async function sendLlegadas() {
     const wbits = waters.map((w) => `${w.p.name}: ${w.text}`);
     const base = { productId: 'llegadas', owner, camino: '-', state: 'info', qty: '', note: '', by, byName, createdAt: now, sent: false, kind: 'llegadas' };
     B.add('alerts', { ...base, name: 'Reporte de llegadas', to: ['admin'], title: `Llegadas de ${OWNERS[owner]}`, body: [...bits, ...wbits].join(' · ').slice(0, 230) || 'Reporte enviado' }).catch(() => {});
+    rows.filter((r) => r.buy !== null && r.buy !== undefined).forEach((r) => {
+      B.add('alerts', { ...base, name: 'Comprar ' + r.p.name, state: 'out', to: ['admin'], title: `Comprar ${r.p.name.toLowerCase()}`, body: `Quedan ${r.buy} (menos de ${r.p.minStock}).` }).catch(() => {});
+    });
     if (wbits.length) B.add('alerts', { ...base, name: 'Aguas de Puesto 1', to: ['produccion'], title: 'Sobrante de aguas y desayuno', body: wbits.join(' · ').slice(0, 230) }).catch(() => {});
   } catch (e) { toast('No se pudo enviar. Reintenta con internet.'); }
 }

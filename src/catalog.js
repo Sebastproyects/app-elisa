@@ -39,11 +39,11 @@ export const SECTIONS = [
 
 // Versión del catálogo. Al subirla, el script scheduler/migrate.mjs actualiza los productos
 // ya cargados en Firestore (solo los campos de patchFields) y borra los de MIGRATION_DELETE.
-export const CATALOG_VERSION = 4;
+export const CATALOG_VERSION = 5;
 export const MIGRATION_DELETE = ['chis_sand', 'chis_emp', 'chis_gel', 'chis_des'];
 export const patchFields = (p) => {
   const o = {};
-  ['name', 'section', 'modes', 'units', 'full', 'count', 'noReport', 'leftOnly', 'expected', 'order'].forEach((k) => {
+  ['name', 'section', 'modes', 'units', 'full', 'minStock', 'count', 'noReport', 'leftOnly', 'expected', 'order'].forEach((k) => {
     if (p[k] !== undefined) o[k] = p[k];
   });
   return o;
@@ -101,7 +101,7 @@ export const PRODUCTS = [
   P('encurtido', 'Encurtido', 'Sándwiches', 'p1', 'C', ['bar'], POTE),
   P('vinagreta', 'Vinagreta', 'Sándwiches', 'p1', 'C', ['bar'], POTE),
   P('papita', 'Papitas al hilo', 'Sándwiches', 'p1', 'C', ['kg']),
-  P('panR', 'Pan redondo', 'Sándwiches', 'p1', 'E', ['un'], { units: { un: 'panes' }, count: true }),
+  P('panR', 'Pan redondo', 'Sándwiches', 'p1', 'E', ['un'], { units: { un: 'panes' }, count: true, minStock: 10 }),
   P('sanguchera', 'Sanguchera', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
   P('chismosa', 'Bolsa chismosa', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
   P('b8x12', 'Bolsa 8x12', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
@@ -126,7 +126,7 @@ export const PRODUCTS = [
 
   // ---------- PUESTO 1 · Desayuno y aguas ----------
   P('quinua', 'Desayuno de quinua', 'Aguas', 'p1', 'A', ['bar', 'lt'], { ...BALDE, leftOnly: true, noReport: true }),
-  P('agua_pina', 'Agua de piña', 'Aguas', 'p1', 'A', ['bar', 'lt'], { ...BALDE, leftOnly: true, noReport: false }),
+  P('agua_pina', 'Agua de piña', 'Aguas', 'p1', 'A', ['bar', 'lt'], { ...BALDE, leftOnly: true, noReport: true }),
   P('agua_mara', 'Agua de maracuyá', 'Aguas', 'p1', 'A', ['bar', 'lt'], { ...BALDE, leftOnly: true, noReport: true }),
   P('agua_manz', 'Agua de manzana', 'Aguas', 'p1', 'A', ['bar', 'lt'], { ...BALDE, leftOnly: true, noReport: false }),
   P('agua_herv', 'Agua hervida', 'Aguas', 'p1', 'A', ['lt', 'un'], { units: { un: 'porciones de 500 ml' } }),
