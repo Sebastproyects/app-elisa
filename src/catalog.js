@@ -34,12 +34,12 @@ export const ROLE_OWNER = { puesto1: 'p1', puesto2: 'p2', produccion: 'prod' };
 
 export const SECTIONS = [
   'Sándwiches', 'Jugos', 'Gelatinas', 'Gaseosas', 'Plásticos y bolsas', 'Desayuno y aguas', 'Empanadas',
-  'Carnes y verduras crudas', 'Aderezos', 'Frutas',
+  'Cabeza', 'Pollo', 'Verduras', 'Frutas', 'Aderezos',
 ];
 
 // Versión del catálogo. Al subirla, el script scheduler/migrate.mjs actualiza los productos
 // ya cargados en Firestore (solo los campos de patchFields) y borra los de MIGRATION_DELETE.
-export const CATALOG_VERSION = 2;
+export const CATALOG_VERSION = 3;
 export const MIGRATION_DELETE = ['chis_sand', 'chis_emp', 'chis_gel', 'chis_des'];
 export const patchFields = (p) => {
   const o = {};
@@ -74,6 +74,8 @@ const P = (id, name, section, owner, camino, modes, extra = {}) =>
 
 // Cantidad que llega cada día: lv = lunes a viernes, sab = sábado, dom = domingo.
 const PAN_ESPERADO = { lv: 36, sab: 60, dom: 84 };
+// Lo que llega cada día de empanadas (lunes a viernes / sábado / domingo).
+const EMP = (lv, fin) => ({ lv, sab: fin, dom: fin });
 
 const FRUTA_UN = ['un', 'kg', 'lvl'];
 const FRUTA_KG = ['kg', 'un', 'lvl'];
@@ -103,13 +105,13 @@ export const PRODUCTS = [
   P('b8x12', 'Bolsa 8x12', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
 
   // ---------- PUESTO 1 · Empanadas (proveedor) ----------
-  P('emp_queso', 'Empanada de queso', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true }),
-  P('emp_pizza', 'Empanada de pizza', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true }),
-  P('emp_pollo', 'Empanada de pollo', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true }),
-  P('emp_mixta', 'Empanada mixta', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true }),
-  P('emp_arabe', 'Empanada árabe', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true }),
-  P('saltena', 'Salteña', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true }),
-  P('papa_rell', 'Papa rellena', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true }),
+  P('emp_queso', 'Empanada de queso', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true, expected: EMP(9, 15) }),
+  P('emp_pizza', 'Empanada de pizza', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true, expected: EMP(5, 5) }),
+  P('emp_pollo', 'Empanada de pollo', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true, expected: EMP(3, 5) }),
+  P('emp_mixta', 'Empanada mixta', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true, expected: EMP(5, 5) }),
+  P('emp_arabe', 'Empanada árabe', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true, expected: EMP(8, 10) }),
+  P('saltena', 'Salteña', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true, expected: EMP(8, 10) }),
+  P('papa_rell', 'Papa rellena', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true, expected: { lv: 5, sab: 10 } }),
   P('bp1', 'Bolsa de papel 1', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
   P('bp2', 'Bolsa de papel 2', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
   P('bp3', 'Bolsa de papel 3', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
@@ -163,12 +165,13 @@ export const PRODUCTS = [
   P('fanta', 'Fanta', 'Gaseosas', 'p1', 'C', ['un']),
 
   // ---------- PRODUCCIÓN · materia prima ----------
-  P('r_cabeza', 'Cabeza de chancho cruda', 'Carnes y verduras crudas', 'prod', 'C', ['half'], { units: { half: 'cabezas' } }),
-  P('r_lechuga', 'Lechuga', 'Carnes y verduras crudas', 'prod', 'C', ['bar5', 'un'], { units: { bar5: 'lechugas', un: 'lechugas' } }),
-  P('r_tomate', 'Tomate', 'Carnes y verduras crudas', 'prod', 'C', ['kg', 'un', 'lvl']),
-  P('r_cebolla', 'Cebolla', 'Carnes y verduras crudas', 'prod', 'C', ['kg', 'un', 'lvl']),
-  P('r_limon', 'Limón', 'Carnes y verduras crudas', 'prod', 'C', ['kg', 'un', 'lvl']),
-  P('r_rocoto', 'Rocoto', 'Carnes y verduras crudas', 'prod', 'C', ['kg', 'un', 'lvl']),
+  P('r_cabeza', 'Cabeza de chancho cruda', 'Cabeza', 'prod', 'C', ['half'], { units: { half: 'cabezas' } }),
+  P('r_pollo', 'Pechugas de pollo', 'Pollo', 'prod', 'C', ['kg', 'un'], { units: { un: 'pechugas' } }),
+  P('r_lechuga', 'Lechuga', 'Verduras', 'prod', 'C', ['bar5', 'un'], { units: { bar5: 'lechugas', un: 'lechugas' } }),
+  P('r_tomate', 'Tomate', 'Verduras', 'prod', 'C', ['kg', 'un', 'lvl']),
+  P('r_cebolla', 'Cebolla', 'Verduras', 'prod', 'C', ['kg', 'un', 'lvl']),
+  P('r_limon', 'Limón', 'Verduras', 'prod', 'C', ['kg', 'un', 'lvl']),
+  P('r_rocoto', 'Rocoto', 'Verduras', 'prod', 'C', ['kg', 'un', 'lvl']),
 
   P('r_sal', 'Sal', 'Aderezos', 'prod', 'C', ['kg', 'lvl']),
   P('r_pimienta', 'Pimienta', 'Aderezos', 'prod', 'C', ['lvl', 'kg']),

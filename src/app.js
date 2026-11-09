@@ -67,7 +67,7 @@ const S = {
   tab: null, sub: null,
   q: '', only: false, ownerFilter: 'all', prepFilter: 'all',
   sheet: null, loaded: {},
-  font: store.get('font', 1), sound: store.get('sound', true),
+  font: store.get('font', 1), sound: store.get('sound', true), theme: store.get('theme', 'auto'),
   push: 'unknown', deferredInstall: null, countOwner: 'p1', open: {}, cntOpen: {},
 };
 let unsubs = [];
@@ -148,7 +148,7 @@ const noteBlock = (st) => (st.note ? `<div class="cmt">${ico('note', 20)}<span>$
 
 /* ============================== arranque ============================== */
 async function boot() {
-  applyFont();
+  applyFont(); applyTheme();
   await B.init();
   B.onAuth(async (u) => {
     stopWatchers();
@@ -232,14 +232,14 @@ function detectAlerts(prev, now) {
   }
 }
 let actx;
-function beep() {
-  if (!S.sound) return;
+function beep(force) {
+  if (!S.sound && !force) return;
   try {
     actx = actx || new (window.AudioContext || window.webkitAudioContext)();
     [0, 0.22].forEach((t) => {
       const o = actx.createOscillator(); const g = actx.createGain();
       o.frequency.value = 880; o.connect(g); g.connect(actx.destination);
-      g.gain.setValueAtTime(0.25, actx.currentTime + t);
+      g.gain.setValueAtTime(force ? 0.8 : 0.25, actx.currentTime + t);
       g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + t + 0.18);
       o.start(actx.currentTime + t); o.stop(actx.currentTime + t + 0.2);
     });
@@ -430,7 +430,7 @@ function reporteView(owner) {
   if (!mine.length) {
     return `<p class="muted pad">Todavía no hay productos para ${esc(OWNERS[owner] || 'este perfil')}. La señora Elisa los agrega desde Más → Catálogo.</p>`;
   }
-  const filters = role() !== 'produccion'; // Producción no usa buscador ni filtro
+  const filters = false; // ningún perfil usa buscador ni filtro
   let list = mine;
   const q = filters ? norm(S.q.trim()) : '';
   const only = filters && S.only;
@@ -819,9 +819,13 @@ function ajustesView() {
   <h2 class="sec">Letra</h2>
   <div class="seg">${[['Normal', 0], ['Grande', 1], ['Muy grande', 2]].map(([l, v]) =>
     `<button class="${S.font === v ? 'on' : ''}" data-act="font" data-v="${v}">${l}</button>`).join('')}</div>
+  <h2 class="sec">Tema</h2>
+  <div class="seg">${[['Automático', 'auto'], ['Claro', 'light'], ['Oscuro', 'dark']].map(([l, v]) =>
+    `<button class="${S.theme === v ? 'on' : ''}" data-act="theme" data-v="${v}">${l}</button>`).join('')}</div>
   <h2 class="sec">Avisos</h2>
   <div class="card slim"><div class="sb">${pushTxt}</div>
     ${S.push === 'default' ? '<button class="btn primary" data-act="push">Activar avisos</button>' : ''}
+    <button class="btn ghost" data-act="testalarm">${ico('bell', 20)} Probar aviso</button>
     <label class="chk"><input type="checkbox" data-field="sound" ${S.sound ? 'checked' : ''}> Sonido dentro de la app</label></div>
   ${S.deferredInstall ? '<h2 class="sec">Instalar</h2><button class="btn primary" data-act="install">Instalar la app en este celular</button>' : ''}
   ${isAdmin() ? `<h2 class="sec">Administración</h2>
@@ -928,6 +932,34 @@ async function turnOnPush() {
     toast('Avisos activados');
   } else if (t === 'denied') toast('Los avisos quedaron bloqueados.');
   render();
+}
+
+/* ================================== tema ================================== */
+const mqDark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+function applyTheme() {
+  const dark = S.theme === 'dark' || (S.theme === 'auto' && mqDark && mqDark.matches);
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  const m = document.querySelector('meta[name=theme-color]');
+  if (m) m.setAttribute('content', dark ? '#14181A' : '#F6F3EE');
+}
+if (mqDark && mqDark.addEventListener) mqDark.addEventListener('change', () => { if (S.theme === 'auto') applyTheme(); });
+
+/* ============================ probar el aviso ============================ */
+async function testAlarm() {
+  beep(true);
+  try { navigator.vibrate && navigator.vibrate([300, 150, 300, 150, 300]); } catch (e) { /* sin vibración */ }
+  if (!('Notification' in window)) { toast('Este navegador no permite avisos del sistema.'); return; }
+  if (Notification.permission === 'default') await turnOnPush();
+  if (Notification.permission !== 'granted') { toast('Los avisos están bloqueados. Actívalos en los ajustes del celular.'); return; }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    await reg.showNotification('Aviso de prueba', {
+      body: 'Así suena y vibra un aviso. Si no lo escuchaste, sube el volumen de notificaciones del celular.',
+      icon: 'icon-192.png', badge: 'icon-192.png', tag: 'prueba', renotify: true,
+      vibrate: [300, 150, 300, 150, 300], data: { url: './' },
+    });
+    toast('Aviso enviado. Mira la barra de notificaciones.');
+  } catch (e) { toast('No se pudo mostrar el aviso de prueba.'); }
 }
 
 /* ================================== letra ================================== */
@@ -1049,6 +1081,8 @@ document.addEventListener('click', async (e) => {
       if (confirm('¿Borrar esta cuenta? Perderá el acceso al instante.')) { await B.del('users/' + t.dataset.uid); toast('Cuenta borrada'); }
       break;
     case 'font': S.font = +t.dataset.v; store.set('font', S.font); applyFont(); render(); break;
+    case 'theme': S.theme = t.dataset.v; store.set('theme', S.theme); applyTheme(); render(); break;
+    case 'testalarm': await testAlarm(); break;
     case 'push': await turnOnPush(); break;
     case 'install': S.deferredInstall.prompt(); S.deferredInstall = null; render(); break;
     case 'savephone': await B.set('config/app', { adminPhone: $('#phone').value.trim() }); toast('Teléfono guardado'); break;
