@@ -18,9 +18,9 @@ const ago = (ms) => {
   if (d === 1) return 'ayer';
   return `hace ${d} días`;
 };
-const FR = { 0.25: '¼', 0.5: '½', 0.75: '¾' };
+const FR = { 0.125: '⅛', 0.25: '¼', 0.375: '⅜', 0.5: '½', 0.625: '⅝', 0.75: '¾', 0.875: '⅞' };
 const fracText = (n) => {
-  const w = Math.floor(n); const r = Math.round((n - w) * 100) / 100;
+  const w = Math.floor(n); const r = Math.round((n - w) * 1000) / 1000;
   if (!r) return String(w);
   return (w ? String(w) : '') + (FR[r] || r);
 };
@@ -98,7 +98,10 @@ function fmtQty(p, st) {
   const m = MODES[mode];
   if (!m) return '';
   if (m.kind === 'num') return `${fracText(+st.qty)} ${unitOf(p, mode)}`;
-  if (m.kind === 'bar') return `${fracText(+st.qty)} ${unitOf(p, mode) || ''}${m.max > 1 ? ` de ${m.max}` : ''}`.trim();
+  if (m.kind === 'bar') {
+    if (m.max === 1 && +st.qty === 1 && p.full) return p.full;
+    return `${fracText(+st.qty)} ${unitOf(p, mode) || ''}${m.max > 1 ? ` de ${m.max}` : ''}`.trim();
+  }
   if (m.kind === 'yn') return +st.qty ? 'Hay' : 'No hay';
   if (m.kind === 'lvl') return LEVELS[+st.qty] || '';
   return '';
@@ -359,6 +362,7 @@ function tabsFor() {
     return [
       { id: 'hoy', label: 'Para hoy', icon: ico('calcheck'), badge: todayItems().length },
       { id: 'reporte', label: 'Mi materia prima', icon: ico('basket') },
+      { id: 'avisos', label: 'Avisos', icon: ico('bell') },
       { id: 'ajustes', label: 'Más', icon: ico('sliders') },
     ];
   }
@@ -426,8 +430,9 @@ function itemRow(p) {
     ? `<div class="sentb">${ico('box', 16)} Producción envió a las ${hhmm(st.sentAt)}. Marca “Sí hay” cuando llegue.</div>` : '';
   return `<div class="item s-${s}" data-id="${p.id}">
     <div class="im" data-act="open" data-id="${p.id}">
-      <div class="nm">${esc(p.name)}</div>
-      <div class="sb">${det || '<span class="hint">toca para anotar cantidad o comentario</span>'}</div>${sent}
+      <div class="imt"><div class="nm">${esc(p.name)}</div>
+      <div class="sb">${det || '<span class="hint">toca para anotar cantidad o comentario</span>'}</div>${sent}</div>
+      <span class="more" aria-label="Abrir para anotar cantidad o comentario">${ico('down', 18)}</span>
     </div>
     <div class="sts">${['out', 'low', 'ok'].map((k) =>
       `<button class="st ${k} ${s === k ? 'on' : ''}" data-act="state" data-id="${p.id}" data-s="${k}" aria-label="${STATES[k].label}">
@@ -487,6 +492,11 @@ function openSheet(id) {
 }
 function closeSheet() { S.sheet = null; const sh = $('#sheet'); sh.classList.remove('open'); sh.innerHTML = ''; }
 
+function barText(p, mode, v) {
+  const m = MODES[mode]; const u = esc(unitOf(p, mode));
+  if (m.max === 1 && v === 1 && p.full) return `<b>${esc(p.full)}</b>`;
+  return `<b>${fracText(v)}</b> ${u}${m.max > 1 ? ` (de ${m.max})` : ''}`;
+}
 function qtyWidget(p, mode, qty) {
   const m = MODES[mode]; const u = esc(unitOf(p, mode));
   if (m.kind === 'num') {
@@ -496,9 +506,9 @@ function qtyWidget(p, mode, qty) {
   }
   if (m.kind === 'bar') {
     const v = qty ?? 0;
-    return `<div class="bar"><div class="bt">${qty === null ? '<span class="hint">mueve la barra</span>' : `<b>${fracText(+v)}</b> ${u}${m.max > 1 ? ` (de ${m.max})` : ''}`}</div>
+    return `<div class="bar"><div class="bt">${qty === null ? '<span class="hint">mueve la barra</span>' : barText(p, mode, +v)}</div>
       <input type="range" id="qrange" min="0" max="${m.max}" step="${m.step}" value="${v}" data-field="qrange" ${qty === null ? 'class="untouched"' : ''}>
-      <div class="ticks"><span>0</span><span>${m.max === 1 ? '½' : fracText(m.max / 2)}</span><span>${m.max === 1 ? 'lleno' : m.max}</span></div>
+      <div class="ticks"><span>0</span><span>${m.max === 1 ? '½' : fracText(m.max / 2)}</span><span>${m.max === 1 ? esc(p.full || 'lleno') : m.max}</span></div>
       ${qty !== null ? '<button class="link" data-act="qclear">quitar cantidad</button>' : ''}</div>`;
   }
   if (m.kind === 'yn') {
@@ -628,11 +638,59 @@ function hoyView() {
 }
 
 /* ---------- Avisos (Puesto y Adquisición) ---------- */
+/* ---------- Reporte de llegadas (lo manda Puesto 1) ---------- */
+function llegadasData(owner, date) {
+  const doc = countsDoc(owner, date); const rows = []; const waters = [];
+  prodList().filter((p) => p.owner === owner).forEach((p) => {
+    const it = (doc.items || {})[p.id] || {};
+    const has = (v) => v !== null && v !== undefined;
+    if (p.count) {
+      if (!has(it.arrived) && !has(it.left)) return;
+      const exp = expectedFor(p, date);
+      const short = exp !== null && has(it.arrived) ? Math.max(0, exp - it.arrived) : 0;
+      const extra = exp !== null && has(it.arrived) ? Math.max(0, it.arrived - exp) : 0;
+      rows.push({ p, arrived: it.arrived, exp, short, extra, left: has(it.left) ? it.left : null });
+    } else if (p.leftOnly && has(it.left)) {
+      waters.push({ p, text: fmtQty(p, { mode: it.leftMode, qty: it.left }) });
+    }
+  });
+  return { doc, rows, waters };
+}
+const rowChips = (r) => {
+  const c = [];
+  if (r.short > 0) c.push(`<span class="pill out">Faltaron ${r.short}</span>`);
+  if (r.left) c.push(`<span class="pill low">Sobraron ${r.left}</span>`);
+  if (r.extra > 0) c.push(`<span class="pill low">Llegaron ${r.extra} de más</span>`);
+  if (!c.length) c.push('<span class="pill ok">Todo bien</span>');
+  return c.join(' ');
+};
+function llegadasHtml(who) {
+  const date = dayKey(); const owners = ['p1', 'p2'].filter((o) => Object.values(S.products).some((p) => p.owner === o));
+  const out = owners.map((o) => {
+    const { doc, rows, waters } = llegadasData(o, date);
+    const title = `Llegadas de ${OWNERS[o]}`;
+    if (!doc.reportAt) {
+      return `<h2 class="sec">${esc(title)}</h2><p class="muted small pad-s">Todavía no enviaron el reporte de hoy.</p>`;
+    }
+    const meta = `<div class="done">${ico('check', 18)} Enviado a las ${hhmm(doc.reportAt)} por ${esc((doc.reportByName || '').split(' ')[0])}</div>`;
+    const rowsHtml = who === 'admin' ? rows.map((r) => `<div class="card slim"><div class="ct"><div class="nm">${esc(r.p.name)}</div></div>
+      <div class="chips2">${rowChips(r)}</div>
+      <div class="sb">Llegaron ${r.arrived ?? '—'}${r.exp !== null ? ` (esperado ${r.exp})` : ''}</div></div>`).join('') : '';
+    const wHtml = waters.length ? `<h2 class="sec">Aguas y desayuno que sobraron <span class="muted">(aprox.)</span></h2><div class="card slim">${waters.map((w) =>
+      `<div class="lrow"><span>${esc(w.p.name)}</span><b>${esc(w.text)}</b></div>`).join('')}</div>` : '';
+    return `<h2 class="sec">${esc(title)}</h2>${meta}${rowsHtml}${wHtml}${!rows.length && !waters.length ? '<p class="muted small pad-s">El reporte llegó vacío.</p>' : ''}`;
+  }).join('');
+  return out;
+}
 function avisosView() {
   if (!S.loaded.status) return '<p class="muted pad">Cargando…</p>';
+  if (role() === 'produccion') {
+    return `<div class="lead"><span><strong>Avisos de Puesto 1</strong><small>Lo que sobró de las aguas y el desayuno</small></span></div>${llegadasHtml('prod')}`;
+  }
   const od = overdueItems(); const sent = sentToday();
   const dl = String(S.config.sendDeadline || '07:00');
-  return `<div class="lead"><b>${od.length}</b> ${od.length === 1 ? 'cosa sin enviar' : 'cosas sin enviar'}</div>
+  return `${isAdmin() ? llegadasHtml('admin') : ''}
+    <div class="lead"><b>${od.length}</b> ${od.length === 1 ? 'cosa sin enviar' : 'cosas sin enviar'}</div>
     <div class="hint pad-s">Lo que se pidió ayer y Producción no envió a las ${esc(dl)}.</div>
     ${od.map((p) => {
     const st = getSt(p.id);
@@ -760,7 +818,7 @@ function conteoView() {
   const table = (title, items) => `<h2 class="sec">${esc(title)}</h2>
     <div class="ctable"><div class="chead"><span>Producto</span><span>Llegó</span><span class="o">Sobró</span></div>
     ${items.map((p) => countRow(p, owner, doc, today)).join('')}</div>`;
-  const leftTable = leftOnly.length ? `<h2 class="sec">Desayuno y aguas: lo que sobró <span class="muted">(aprox.)</span></h2>
+  const leftTable = leftOnly.length ? `<h2 class="sec">Aguas y desayuno: lo que sobró <span class="muted">(aprox.)</span></h2>
     <div class="ctable">${leftOnly.map((p) => {
     const it = (doc.items || {})[p.id] || {};
     const v = it.left !== null && it.left !== undefined ? fmtQty(p, { mode: it.leftMode, qty: it.left }) : '';
@@ -785,7 +843,29 @@ function conteoView() {
       <p class="hint">Si algo llegó de menos o de más, toca la flecha de ese producto.</p></div>` : ''}
     ${Object.keys(groups).map((g) => table(COUNT_TITLES[g] || g, groups[g])).join('') || '<p class="muted pad">No hay productos con conteo.</p>'}
     ${leftTable}
+    ${!isAdmin() ? sendReportBlock(doc) : ''}
     ${hist}`;
+}
+function sendReportBlock(doc) {
+  return `<div class="finish">${doc.reportAt ? `<div class="done">${ico('check', 18)} Reporte enviado a las ${hhmm(doc.reportAt)}</div>` : ''}
+    <button class="btn primary xl" data-act="send-llegadas">${ico('box', 22)} ${doc.reportAt ? 'Volver a enviar el reporte' : 'Enviar reporte de llegadas'}</button>
+    <p class="muted small">Le llega a Adquisición y a Producción: lo que llegó, faltó o sobró, y el sobrante de aguas y desayuno.</p></div>`;
+}
+async function sendLlegadas() {
+  const owner = myOwner(); const date = dayKey(); const id = `${date}_${owner}`;
+  const { rows, waters } = llegadasData(owner, date);
+  const cur = S.counts[id] || { date, owner, items: {} };
+  const now = B.now(); const by = S.user.uid; const byName = S.me.name || '';
+  S.counts[id] = { ...cur, date, owner, reportAt: now, reportBy: by, reportByName: byName };
+  render(); toast('Reporte enviado a Adquisición y Producción. ¡Gracias!');
+  try {
+    await B.set('counts/' + id, { date, owner, items: {}, reportAt: now, reportBy: by, reportByName: byName });
+    const bits = rows.map((r) => `${r.p.name.replace(/^Empanada (de )?/i, 'Emp. ')}${r.short ? ` faltaron ${r.short}` : ''}${r.left ? ` sobraron ${r.left}` : ''}${!r.short && !r.left ? ' ok' : ''}`);
+    const wbits = waters.map((w) => `${w.p.name}: ${w.text}`);
+    const base = { productId: 'llegadas', owner, camino: '-', state: 'info', qty: '', note: '', by, byName, createdAt: now, sent: false, kind: 'llegadas' };
+    B.add('alerts', { ...base, name: 'Reporte de llegadas', to: ['admin'], title: `Llegadas de ${OWNERS[owner]}`, body: [...bits, ...wbits].join(' · ').slice(0, 230) || 'Reporte enviado' }).catch(() => {});
+    if (wbits.length) B.add('alerts', { ...base, name: 'Aguas de Puesto 1', to: ['produccion'], title: 'Sobrante de aguas y desayuno', body: wbits.join(' · ').slice(0, 230) }).catch(() => {});
+  } catch (e) { toast('No se pudo enviar. Reintenta con internet.'); }
 }
 // Guarda cambios del conteo de hoy: patches = { productId: { campo: valor } }
 async function saveCountMany(owner, patches) {
@@ -1019,11 +1099,12 @@ document.addEventListener('click', async (e) => {
       const patch = { state: z.state, mode: z.qty === null ? null : z.mode, qty: z.qty, note: z.note };
       closeSheet(); await saveStatus(z.p, patch); break;
     }
+    case 'send-llegadas': await sendLlegadas(); break;
     case 'finish': {
       const owner = t.dataset.owner; const now = B.now();
       const id = `${dayKey()}_${owner}_${now}`;
       S.reports[id] = { owner, date: dayKey(), at: now, by: S.user.uid, byName: S.me.name || '' };
-      render(); toast('Reporte enviado. ¡Gracias!');
+      S.open = {}; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); toast('Reporte enviado. ¡Gracias!');
       B.set('reports/' + id, S.reports[id]).catch(() => toast('No se pudo enviar. Se reintenta al volver el internet.'));
       break;
     }
@@ -1115,7 +1196,7 @@ document.addEventListener('input', (e) => {
     S.sheet.state = suggestState(S.sheet.mode, v, S.sheet.state);
     t.classList.remove('untouched');
     const bt = $('.bt'); const p = S.sheet.p; const m = MODES[S.sheet.mode];
-    if (bt) bt.innerHTML = `<b>${fracText(v)}</b> ${esc(unitOf(p, S.sheet.mode))}${m.max > 1 ? ` (de ${m.max})` : ''}`;
+    if (bt) bt.innerHTML = barText(p, S.sheet.mode, v);
     $$sts();
   }
 });

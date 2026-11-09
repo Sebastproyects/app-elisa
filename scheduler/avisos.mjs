@@ -60,7 +60,12 @@ async function immediate() {
   for (const doc of snap.docs) {
     const a = doc.data();
     const stale = nowMs - (a.createdAt || nowMs) > 3 * 3600 * 1000;
-    if (!stale) {
+    if (!stale && a.kind === 'llegadas') {
+      console.log('Aviso de llegadas:', a.title);
+      await send(a.to && a.to.length ? a.to : ['admin'], {
+        title: a.title || 'Reporte de llegadas', body: a.body || '', tag: 'llegadas-' + today, urgent: '0', url: './',
+      }, { exceptUid: a.by });
+    } else if (!stale) {
       const out = a.state === 'out';
       const bits = [OWNERS[a.owner] || a.owner, a.qty, a.note && `“${a.note}”`, a.byName].filter(Boolean);
       console.log('Aviso inmediato:', a.name, a.state);

@@ -13,7 +13,7 @@ export const MODES = {
   half: { kind: 'num', step: 0.5, unit: 'unidades',  name: 'unidades (con mitades)' },
   pack: { kind: 'num', step: 1,   unit: 'paquetes',  name: 'paquetes' },
   lt:   { kind: 'num', step: 0.5, unit: 'litros',    name: 'litros' },
-  bar:  { kind: 'bar', max: 1, step: 0.25,           name: 'barra 0 a 1' },
+  bar:  { kind: 'bar', max: 1, step: 0.125,          name: 'barra 0 a 1' },
   bar5: { kind: 'bar', max: 5, step: 0.5,            name: 'barra 0 a 5' },
   yn:   { kind: 'yn',                                name: 'hay / no hay' },
   lvl:  { kind: 'lvl',                               name: 'poco / regular / sí hay' },
@@ -33,17 +33,17 @@ export const ROLES = {
 export const ROLE_OWNER = { puesto1: 'p1', puesto2: 'p2', produccion: 'prod' };
 
 export const SECTIONS = [
-  'Sándwiches', 'Jugos', 'Gelatinas', 'Gaseosas', 'Plásticos y bolsas', 'Desayuno y aguas', 'Empanadas',
+  'Sándwiches', 'Jugos', 'Gelatinas', 'Gaseosas', 'Plásticos y bolsas', 'Aguas', 'Desayuno y aguas', 'Empanadas',
   'Cabeza', 'Pollo', 'Verduras', 'Frutas', 'Aderezos',
 ];
 
 // Versión del catálogo. Al subirla, el script scheduler/migrate.mjs actualiza los productos
 // ya cargados en Firestore (solo los campos de patchFields) y borra los de MIGRATION_DELETE.
-export const CATALOG_VERSION = 3;
+export const CATALOG_VERSION = 4;
 export const MIGRATION_DELETE = ['chis_sand', 'chis_emp', 'chis_gel', 'chis_des'];
 export const patchFields = (p) => {
   const o = {};
-  ['name', 'section', 'modes', 'units', 'count', 'noReport', 'leftOnly', 'expected'].forEach((k) => {
+  ['name', 'section', 'modes', 'units', 'full', 'count', 'noReport', 'leftOnly', 'expected', 'order'].forEach((k) => {
     if (p[k] !== undefined) o[k] = p[k];
   });
   return o;
@@ -80,26 +80,28 @@ const EMP = (lv, fin) => ({ lv, sab: fin, dom: fin });
 const FRUTA_UN = ['un', 'kg', 'lvl'];
 const FRUTA_KG = ['kg', 'un', 'lvl'];
 const VERDURA = ['kg', 'lvl', 'un'];
+const POTE = { units: { bar: 'pote' }, full: 'pote lleno' };
+const BALDE = { units: { bar: 'de lo preparado' }, full: 'un balde lleno' };
 
 export const PRODUCTS = [
   // ---------- PUESTO 1 · Sándwiches ----------
-  P('pan3', 'Pan de tres puntas', 'Sándwiches', 'p1', 'E', ['un'], { units: { un: 'panes' }, count: true, expected: PAN_ESPERADO }),
-  P('panR', 'Pan redondo', 'Sándwiches', 'p1', 'E', ['un'], { units: { un: 'panes' }, count: true }),
+  P('pan3', 'Pan de tres puntas', 'Sándwiches', 'p1', 'E', ['un'], { units: { un: 'panes' }, count: true, noReport: true, expected: PAN_ESPERADO }),
   P('pollo', 'Pollo cocido', 'Sándwiches', 'p1', 'B', ['kg'], { early: true }),
-  P('cabeza', 'Cabeza de chancho preparada', 'Sándwiches', 'p1', 'A', ['kg']),
-  P('lechon', 'Lechón', 'Sándwiches', 'p1', 'C', ['bar', 'kg'], { early: true, units: { bar: 'pierna' } }),
-  P('lechuga', 'Lechuga', 'Sándwiches', 'p1', 'A', ['bar', 'un'], { units: { bar: 'lechuga', un: 'lechugas' } }),
-  P('tomate', 'Tomate', 'Sándwiches', 'p1', 'A', VERDURA),
+  P('cabeza', 'Cabeza de chancho preparada', 'Sándwiches', 'p1', 'A', ['half', 'bar'], { units: { half: 'bandejas', bar: 'bandeja' }, full: 'bandeja llena' }),
+  P('lechon', 'Lechón', 'Sándwiches', 'p1', 'C', ['bar', 'kg'], { early: true, units: { bar: 'pierna' }, full: 'pierna entera' }),
+  P('lechuga', 'Lechuga', 'Sándwiches', 'p1', 'A', ['bar', 'un'], { units: { bar: 'lechuga', un: 'lechugas' }, full: 'toda la lechuga' }),
+  P('tomate', 'Tomate', 'Sándwiches', 'p1', 'A', ['un', 'kg', 'lvl']),
   P('cebolla', 'Cebolla', 'Sándwiches', 'p1', 'A', VERDURA),
   P('limon', 'Limón', 'Sándwiches', 'p1', 'A', VERDURA),
-  P('mayonesa', 'Mayonesa', 'Sándwiches', 'p1', 'A', ['bar'], { units: { bar: 'pote' } }),
-  P('aji', 'Ají', 'Sándwiches', 'p1', 'A', ['bar'], { units: { bar: 'pote' } }),
-  P('mostaza', 'Mostaza', 'Sándwiches', 'p1', 'C', ['bar'], { units: { bar: 'pote' } }),
-  P('ketchup', 'Ketchup', 'Sándwiches', 'p1', 'C', ['bar'], { units: { bar: 'pote' } }),
+  P('mayonesa', 'Mayonesa', 'Sándwiches', 'p1', 'A', ['bar'], POTE),
+  P('aji', 'Ají', 'Sándwiches', 'p1', 'A', ['bar'], POTE),
+  P('mostaza', 'Mostaza', 'Sándwiches', 'p1', 'C', ['bar'], POTE),
+  P('ketchup', 'Ketchup', 'Sándwiches', 'p1', 'C', ['bar'], POTE),
   P('sal_prep', 'Sal preparada', 'Sándwiches', 'p1', 'C', ['yn']),
-  P('encurtido', 'Encurtido', 'Sándwiches', 'p1', 'C', ['bar'], { units: { bar: 'frasco' } }),
-  P('vinagreta', 'Vinagreta', 'Sándwiches', 'p1', 'C', ['bar'], { units: { bar: 'frasco' } }),
+  P('encurtido', 'Encurtido', 'Sándwiches', 'p1', 'C', ['bar'], POTE),
+  P('vinagreta', 'Vinagreta', 'Sándwiches', 'p1', 'C', ['bar'], POTE),
   P('papita', 'Papitas al hilo', 'Sándwiches', 'p1', 'C', ['kg']),
+  P('panR', 'Pan redondo', 'Sándwiches', 'p1', 'E', ['un'], { units: { un: 'panes' }, count: true }),
   P('sanguchera', 'Sanguchera', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
   P('chismosa', 'Bolsa chismosa', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
   P('b8x12', 'Bolsa 8x12', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
@@ -117,17 +119,17 @@ export const PRODUCTS = [
   P('bp3', 'Bolsa de papel 3', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
 
   // ---------- PUESTO 1 · Gelatinas ----------
-  P('gel_fresa', 'Gelatina de fresa', 'Gelatinas', 'p1', 'B', ['kg']),
-  P('gel_pina', 'Gelatina de piña', 'Gelatinas', 'p1', 'B', ['un']),
+  P('gel_fresa', 'Gelatina de fresa', 'Gelatinas', 'p1', 'B', ['bar'], { units: { bar: 'posillo' }, full: 'posillo lleno' }),
+  P('gel_pina', 'Gelatina de piña', 'Gelatinas', 'p1', 'B', ['bar'], { units: { bar: 'posillo' }, full: 'posillo lleno' }),
   P('vaso_peq', 'Vaso pequeño (vaso de gelatina)', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
   P('cucharilla', 'Cucharilla', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
 
   // ---------- PUESTO 1 · Desayuno y aguas ----------
-  P('quinua', 'Desayuno de quinua', 'Desayuno y aguas', 'p1', 'A', ['lt', 'bar'], { units: { bar: 'de lo preparado' }, leftOnly: true, noReport: true }),
-  P('agua_pina', 'Agua de piña', 'Desayuno y aguas', 'p1', 'A', ['lt', 'bar'], { units: { bar: 'de lo preparado' }, leftOnly: true, noReport: true }),
-  P('agua_mara', 'Agua de maracuyá', 'Desayuno y aguas', 'p1', 'A', ['lt', 'bar'], { units: { bar: 'de lo preparado' }, leftOnly: true, noReport: true }),
-  P('agua_manz', 'Agua de manzana', 'Desayuno y aguas', 'p1', 'A', ['lt', 'bar'], { units: { bar: 'de lo preparado' }, leftOnly: true, noReport: true }),
-  P('agua_herv', 'Agua hervida', 'Desayuno y aguas', 'p1', 'A', ['lt', 'un'], { units: { un: 'porciones de 500 ml' } }),
+  P('quinua', 'Desayuno de quinua', 'Aguas', 'p1', 'A', ['bar', 'lt'], { ...BALDE, leftOnly: true, noReport: true }),
+  P('agua_pina', 'Agua de piña', 'Aguas', 'p1', 'A', ['bar', 'lt'], { ...BALDE, leftOnly: true, noReport: false }),
+  P('agua_mara', 'Agua de maracuyá', 'Aguas', 'p1', 'A', ['bar', 'lt'], { ...BALDE, leftOnly: true, noReport: true }),
+  P('agua_manz', 'Agua de manzana', 'Aguas', 'p1', 'A', ['bar', 'lt'], { ...BALDE, leftOnly: true, noReport: false }),
+  P('agua_herv', 'Agua hervida', 'Aguas', 'p1', 'A', ['lt', 'un'], { units: { un: 'porciones de 500 ml' } }),
   P('bolsa1', 'Bolsa de 1 porción', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
   P('bolsa2', 'Bolsa de 2 porciones', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
   P('bolsa3', 'Bolsa de 3 porciones', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
@@ -135,19 +137,19 @@ export const PRODUCTS = [
   P('bot_gra', 'Botella grande', 'Plásticos y bolsas', 'p1', 'C', ['un', 'bar'], { units: { un: 'botellas', bar: 'paquete' } }),
 
   // ---------- PUESTO 1 · Jugos ----------
+  P('azucar', 'Azúcar', 'Jugos', 'p1', 'C', ['kg', 'bar'], { units: { bar: 'bolsa' } }),
+  P('j_papaya', 'Papaya', 'Jugos', 'p1', 'C', FRUTA_UN),
+  P('j_pina', 'Piña', 'Jugos', 'p1', 'C', FRUTA_UN),
+  P('j_guayaba', 'Guayaba', 'Jugos', 'p1', 'C', FRUTA_UN),
   P('j_fresa', 'Fresa', 'Jugos', 'p1', 'C', FRUTA_KG),
   P('j_platano', 'Plátano', 'Jugos', 'p1', 'C', FRUTA_UN),
-  P('j_pina', 'Piña', 'Jugos', 'p1', 'C', FRUTA_UN),
-  P('j_arandano', 'Arándano', 'Jugos', 'p1', 'C', FRUTA_KG),
-  P('j_guayaba', 'Guayaba', 'Jugos', 'p1', 'C', FRUTA_UN),
-  P('j_manzana', 'Manzana', 'Jugos', 'p1', 'C', FRUTA_UN),
-  P('j_papaya', 'Papaya', 'Jugos', 'p1', 'C', FRUTA_UN),
   P('j_mango', 'Mango', 'Jugos', 'p1', 'C', FRUTA_UN),
+  P('j_manzana', 'Manzana', 'Jugos', 'p1', 'C', FRUTA_UN),
+  P('j_arandano', 'Arándano', 'Jugos', 'p1', 'C', FRUTA_KG),
   P('j_melon', 'Melón', 'Jugos', 'p1', 'C', FRUTA_UN),
   P('pepino', 'Pepino', 'Jugos', 'p1', 'C', ['un', 'lvl']),
   P('perejil', 'Perejil', 'Jugos', 'p1', 'C', ['bar'], { units: { bar: 'mazo' } }),
   P('espinaca', 'Espinaca', 'Jugos', 'p1', 'C', ['bar'], { units: { bar: 'kg' } }),
-  P('azucar', 'Azúcar', 'Jugos', 'p1', 'C', ['kg', 'bar'], { units: { bar: 'bolsa' } }),
   P('leche', 'Leche', 'Jugos', 'p1', 'C', ['un'], { units: { un: 'latas' } }),
   P('cerveza', 'Cerveza negra', 'Jugos', 'p1', 'C', ['un'], { units: { un: 'botellas' } }),
   P('vainilla', 'Vainilla', 'Jugos', 'p1', 'C', ['bar', 'un'], { units: { bar: 'frasco', un: 'frascos' } }),

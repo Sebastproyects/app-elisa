@@ -73,7 +73,7 @@ service cloud.firestore {
     match /counts/{id} {
       allow read: if active();
       allow create, update: if active()
-        && request.resource.data.keys().hasOnly(['date', 'owner', 'items']);
+        && request.resource.data.keys().hasOnly(['date', 'owner', 'items', 'reportAt', 'reportBy', 'reportByName']);
     }
 
     // Cola de avisos: los celulares solo la escriben; la lee el programador (que no pasa por estas reglas).
@@ -82,7 +82,7 @@ service cloud.firestore {
         && request.resource.data.by == request.auth.uid
         && request.resource.data.sent == false
         && request.resource.data.keys().hasOnly(['productId', 'name', 'owner', 'camino', 'state', 'to', 'qty',
-             'note', 'by', 'byName', 'createdAt', 'sent']);
+             'note', 'by', 'byName', 'createdAt', 'sent', 'kind', 'title', 'body']);
     }
   }
 }
