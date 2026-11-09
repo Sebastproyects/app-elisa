@@ -231,9 +231,20 @@ function detectAlerts(prev, now) {
     }
   }
 }
-let actx;
+let actx; let voz;
+// Suena la voz que susurra “secretos”; si el celular no la deja reproducir, un pitido.
 function beep(force) {
   if (!S.sound && !force) return;
+  try {
+    voz = voz || new Audio('secretos.mp3');
+    voz.currentTime = 0; voz.volume = 1;
+    const pr = voz.play();
+    if (pr && pr.catch) pr.catch(() => pitido(force));
+    return;
+  } catch (e) { /* sigue con el pitido */ }
+  pitido(force);
+}
+function pitido(force) {
   try {
     actx = actx || new (window.AudioContext || window.webkitAudioContext)();
     [0, 0.22].forEach((t) => {

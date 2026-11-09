@@ -52,5 +52,5 @@ await build({
   logLevel: 'info',
 });
 for (const f of readdirSync('src')) {
-  if (/\.(html|css|png|webmanifest)$/.test(f) || f === 'sw.js') cpSync(`src/${f}`, `${out}/${f}`);
+  if (/\.(html|css|png|mp3|webmanifest)$/.test(f) || f === 'sw.js') cpSync(`src/${f}`, `${out}/${f}`);
 }
