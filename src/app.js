@@ -351,10 +351,7 @@ const pendingView = () => `<div class="center">
   <button class="btn ghost" data-act="signout">Salir</button>
 </div>`;
 
-function watersToday() {
-  const d = dayKey(); const doc = countsDoc('p1', d);
-  return doc.reportAt ? llegadasData('p1', d).waters.length : 0;
-}
+function watersToday() { return llegadasData('p1', dayKey()).waters.length; }
 function lowBread() {
   const d = dayKey(); const doc = countsDoc('p1', d);
   return doc.reportAt ? llegadasData('p1', d).rows.filter((r) => r.buy !== null && r.buy !== undefined).length : 0;
@@ -636,7 +633,7 @@ function hoyView() {
       ${noteBlock(st)}
       <div class="sb">${detailLine(p, st, false)}${st.since ? ` · desde ${ago(st.since)}` : ''}</div>
       ${p.camino === 'B' ? '<div class="note-b">Lo prepara la señora Elisa. Tú lo envías ya hecho.</div>' : ''}
-      ${prepBlock(p)}
+      ${p.camino === 'B' ? '' : prepBlock(p)}
       <button class="btn done-btn" data-act="sent" data-id="${p.id}">${ico('box', 22)} Ya envié</button></div>`;
   }).join('')}
     ${sent.length ? `<h2 class="sec">Ya enviado hoy</h2>${sent.map((p) => {
@@ -686,10 +683,10 @@ function llegadasHtml(who) {
   const out = owners.map((o) => {
     const { doc, rows, waters } = llegadasData(o, date);
     const title = `Llegadas de ${OWNERS[o]}`;
-    if (!doc.reportAt) {
-      return `<h2 class="sec">${esc(title)}</h2><p class="muted small pad-s">Todavía no enviaron el reporte de hoy.</p>`;
+    if (!doc.reportAt && !(who === 'prod' && waters.length)) {
+      return `<h2 class="sec">${esc(title)}</h2><p class="muted small pad-s">${who === 'prod' ? 'Todavía no anotaron sobrante de aguas hoy.' : 'Todavía no enviaron el reporte de hoy.'}</p>`;
     }
-    const meta = `<div class="done">${ico('check', 18)} Enviado a las ${hhmm(doc.reportAt)} por ${esc((doc.reportByName || '').split(' ')[0])}</div>`;
+    const meta = doc.reportAt ? `<div class="done">${ico('check', 18)} Enviado a las ${hhmm(doc.reportAt)} por ${esc((doc.reportByName || '').split(' ')[0])}</div>` : '';
     const buys = who === 'admin' ? rows.filter((r) => r.buy !== null && r.buy !== undefined).map((r) =>
       `<div class="card s-out"><div class="ct"><div class="nm">Comprar ${esc(r.p.name.toLowerCase())}</div><span class="pill out">${ico('alert', 14)} Quedan ${r.buy}</span></div>
       <div class="sb">Quedan menos de ${r.p.minStock}. Ya deben comprar.</div></div>`).join('') : '';
@@ -819,7 +816,7 @@ function countRow(p, owner, doc, today) {
   return `<div class="crow2"><div class="cn"><b>${esc(shortName(p.name))}</b>${exp !== null ? `<small>llegan ${exp}</small>` : ''}</div>
     ${llego}${stepperCnt(p.id, 'left', it.left, owner, 'orange')}</div>
     ${open && exp !== null ? `<div class="cadj">${stepperCnt(p.id, 'arrived', it.arrived ?? exp, owner)}
-      <button class="okx" data-act="arrive-edit" data-pid="${p.id}" aria-label="Listo">${ico('x', 22)}</button></div>` : ''}${who}`;
+      <button class="okx" data-act="arrive-edit" data-pid="${p.id}" aria-label="Listo">${ico('check', 24)}</button></div>` : ''}${who}`;
 }
 
 function conteoView() {

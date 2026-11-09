@@ -2,7 +2,7 @@
 // Lo corre GitHub Actions después de publicar. Solo toca los campos de patchFields;
 // no pisa otros cambios que haga Elisa (aviso temprano, visible, orden…).
 import admin from 'firebase-admin';
-import { PRODUCTS, CATALOG_VERSION, MIGRATION_DELETE, patchFields } from '../src/catalog.js';
+import { PRODUCTS, CATALOG_VERSION, MIGRATION_DELETE, MIGRATION_SET, patchFields } from '../src/catalog.js';
 
 const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
 if (!sa.project_id) { console.log('Todavía no está el secreto FIREBASE_SERVICE_ACCOUNT.'); process.exit(0); }
@@ -30,6 +30,7 @@ if (existing.empty) {
     else { const { id, ...rest } = p; batch.set(ref, { ...rest, order: i, active: true }); }
     n++;
   });
+  Object.entries(MIGRATION_SET).forEach(([id, f]) => { if (ids.has(id)) batch.set(db.collection('products').doc(id), f, { merge: true }); });
   MIGRATION_DELETE.forEach((id) => { if (ids.has(id)) batch.delete(db.collection('products').doc(id)); });
   await batch.commit();
   console.log('Catálogo actualizado:', n, 'productos');

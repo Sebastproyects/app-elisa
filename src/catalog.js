@@ -39,7 +39,13 @@ export const SECTIONS = [
 
 // Versión del catálogo. Al subirla, el script scheduler/migrate.mjs actualiza los productos
 // ya cargados en Firestore (solo los campos de patchFields) y borra los de MIGRATION_DELETE.
-export const CATALOG_VERSION = 5;
+export const CATALOG_VERSION = 6;
+// Cambios puntuales de campos que patchFields no toca (solo se aplican al subir la versión).
+export const MIGRATION_SET = {
+  gel_fresa: { camino: 'B' },
+  gel_pina: { camino: 'B' },
+  panR: { minStock: 10 },
+};
 export const MIGRATION_DELETE = ['chis_sand', 'chis_emp', 'chis_gel', 'chis_des'];
 export const patchFields = (p) => {
   const o = {};
