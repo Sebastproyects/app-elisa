@@ -1,5 +1,6 @@
 // Service worker: guarda la app para abrir rápido/sin internet y muestra los avisos push.
 const CACHE = 'secretos-elisa-v4';
+const BUILD = '__BUILD__'; // cambia en cada publicación: así el celular detecta la versión nueva
 const SHELL = ['./', 'index.html', 'app.js', 'style.css', 'manifest.webmanifest', 'icon-192.png'];
 
 self.addEventListener('install', (e) => {

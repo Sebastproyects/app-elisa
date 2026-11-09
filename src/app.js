@@ -172,7 +172,16 @@ async function boot() {
   B.onForeground((d) => { toast(d.title ? `${d.title}: ${d.body || ''}` : 'Nuevo aviso', true); beep(); });
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); S.deferredInstall = e; render(); });
   if ('serviceWorker' in navigator && B.mode === 'firebase') {
-    navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('sw', e));
+    const hadCtl = !!navigator.serviceWorker.controller; let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadCtl || reloading || S.sheet) return; // si hay una hoja abierta, se actualiza la próxima vez
+      reloading = true; location.reload();
+    });
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      const check = () => reg.update().catch(() => {});
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+      setInterval(check, 5 * 60 * 1000);
+    }).catch((e) => console.warn('sw', e));
   }
   render();
 }
@@ -949,7 +958,7 @@ function ajustesView() {
     <button class="btn ghost" data-act="personas">${ico('users', 20)} Personas${Object.values(S.users).filter((u) => u.role === 'pending').length ? ` (${Object.values(S.users).filter((u) => u.role === 'pending').length} por aprobar)` : ''}</button>
     <button class="btn ghost" data-act="catalogo">Catálogo de productos</button>` : ''}
   <div class="pad"><button class="btn ghost" data-act="signout">Cerrar sesión</button></div>
-  <p class="muted small pad">Versión 1</p>`;
+  <p class="muted small pad">Versión ${typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'de prueba'}</p>`;
 }
 
 /* ---------- Catálogo (solo Elisa) ---------- */

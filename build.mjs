@@ -1,12 +1,14 @@
 // Empaqueta la app en la carpeta "public" (la que se publica en Firebase Hosting).
 // Con --test usa el backend de prueba (sin Firebase) y escribe en "public-test".
 import { build } from 'esbuild';
-import { cpSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
+import { cpSync, mkdirSync, rmSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import JavaScriptObfuscator from 'javascript-obfuscator';
 
 const test = process.argv.includes('--test');
+// Etiqueta de versión (hora de Lima): se muestra en Más y hace que cada publicación cambie sw.js.
+const BUILD = new Date().toLocaleString('es-PE', { timeZone: 'America/Lima', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
 const out = test ? 'public-test' : 'public';
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
@@ -47,10 +49,12 @@ await build({
   format: 'iife',
   target: ['es2020', 'safari15', 'chrome100'],
   outfile: `${out}/app.js`,
+  define: { __BUILD__: JSON.stringify(BUILD) },
   alias: { backend: resolve(`src/backend-${test ? 'mock' : 'firebase'}.js`) },
   plugins: test ? [obfuscate] : [obfuscate],
   logLevel: 'info',
 });
 for (const f of readdirSync('src')) {
-  if (/\.(html|css|png|mp3|webmanifest)$/.test(f) || f === 'sw.js') cpSync(`src/${f}`, `${out}/${f}`);
+  if (/\.(html|css|png|mp3|webmanifest)$/.test(f)) cpSync(`src/${f}`, `${out}/${f}`);
+  if (f === 'sw.js') writeFileSync(`${out}/${f}`, readFileSync(`src/${f}`, 'utf8').replace('__BUILD__', BUILD));
 }
