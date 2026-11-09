@@ -365,8 +365,8 @@ function headerView() {
   };
   const call = !isAdmin()
     ? `<button class="call" data-act="call">${ico('phone', 18)} <span>Llamar a Elisa</span></button>` : '';
-  return `<header><div class="ht"><div class="hn">${titles[role()]}</div>
-    <div class="hs">${esc((S.me.name || '').split(' ')[0])}</div></div>${call}</header>`;
+  return `<header><div class="hc"><div class="hl">${LOGO.replace('class="logo"','class="hlogo"')}</div><div class="ht"><div class="hn">${titles[role()]}</div>
+    <div class="hs">${esc((S.me.name || '').split(' ')[0])}</div></div>${call}</div></header>`;
 }
 
 function banners() {
@@ -592,7 +592,9 @@ function hoyView() {
   const items = todayItems(); const sent = sentToday();
   const okCount = prodList().filter((p) => p.owner !== 'prod' && (p.camino === 'A' || p.camino === 'B')).length - items.length - sent.length;
   const left = latestLeftovers();
-  return `<div class="lead"><b>${items.length}</b> ${items.length === 1 ? 'cosa' : 'cosas'} para preparar y enviar</div>
+  return `${items.length
+    ? `<div class="lead"><b>${items.length}</b><span>${items.length === 1 ? 'cosa' : 'cosas'} para preparar y enviar</span></div>`
+    : `<div class="lead ok"><b>${ico('check', 24)}</b><span><strong>Todo al día</strong><small>Nada que preparar por ahora</small></span></div>`}
     ${items.map((p) => {
     const st = getSt(p.id); const s = st.state;
     return `<div class="card s-${s}"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}
@@ -602,7 +604,7 @@ function hoyView() {
       ${p.camino === 'B' ? '<div class="note-b">Lo prepara la señora Elisa. Tú lo envías ya hecho.</div>' : ''}
       ${prepBlock(p)}
       <button class="btn done-btn" data-act="sent" data-id="${p.id}">${ico('box', 22)} Ya envié</button></div>`;
-  }).join('') || '<p class="muted pad">Nada que preparar por ahora.</p>'}
+  }).join('')}
     ${sent.length ? `<h2 class="sec">Ya enviado hoy</h2>${sent.map((p) => {
     const st = getSt(p.id);
     return `<div class="card slim bought"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}
