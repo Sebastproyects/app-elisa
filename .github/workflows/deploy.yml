@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+      - 'scheduler/**'
       - 'build.mjs'
       - 'package*.json'
       - 'firebase.json'
@@ -38,3 +39,9 @@ jobs:
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
           npx --yes firebase-tools@13 deploy --only hosting,firestore:rules --project app-elisa-63e2e --non-interactive
           rm -f "$RUNNER_TEMP/sa.json"
+      - name: Actualizar el catálogo de productos
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          npm ci --prefix scheduler
+          node scheduler/migrate.mjs

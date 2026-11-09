@@ -37,7 +37,7 @@ const S = {
   q: '', only: false, ownerFilter: 'all', prepFilter: 'all',
   sheet: null, loaded: {},
   font: store.get('font', 1), sound: store.get('sound', true),
-  push: 'unknown', deferredInstall: null, countOwner: 'p1',
+  push: 'unknown', deferredInstall: null, countOwner: 'p1', open: {}, cntOpen: {},
 };
 let unsubs = [];
 let prevStatus = null;
@@ -71,10 +71,10 @@ function fmtQty(p, st) {
   if (m.kind === 'lvl') return LEVELS[+st.qty] || '';
   return '';
 }
-function detailLine(p, st) {
+function detailLine(p, st, withNote = true) {
   const bits = [];
   const q = fmtQty(p, st); if (q) bits.push(q);
-  if (st.note) bits.push('“' + esc(st.note) + '”');
+  if (st.note && withNote) bits.push('“' + esc(st.note) + '”');
   if (st.byName && st.at) bits.push(`${esc(st.byName.split(' ')[0])}, ${ago(st.at)}`);
   return bits.join(' · ');
 }
@@ -85,6 +85,34 @@ const avgInterval = (st) => {
   return Math.max(1, Math.round(sum / (d.length - 1) / 86400000));
 };
 const isBought = (st) => !!(st.boughtAt && (!st.since || st.boughtAt >= st.since));
+// Producción marcó "Ya envié" después de que el producto quedó en poco/falta.
+const isSent = (st) => !!(st.sentAt && (!st.since || st.sentAt >= st.since));
+const day0 = (d = dayKey()) => Date.parse(d + 'T00:00:00-05:00'); // medianoche de Lima
+const weekday = (d) => new Date(d + 'T12:00:00-05:00').getUTCDay(); // 0 = domingo
+// Cantidad que llega normalmente ese día (lv, sab, dom) o un número fijo.
+function expectedFor(p, date) {
+  const e = p.expected;
+  if (e === null || e === undefined || e === '') return null;
+  if (typeof e === 'number') return e;
+  const w = weekday(date);
+  const v = w === 0 ? e.dom : w === 6 ? e.sab : e.lv;
+  return v === undefined || v === null || v === '' ? null : +v;
+}
+const deadlineMin = () => {
+  const [h, m] = String(S.config.sendDeadline || '07:00').split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+const PROD_START_MIN = 4 * 60 + 30; // Producción empieza 4:30
+const needsSend = (p) => p.owner !== 'prod' && (p.camino === 'A' || p.camino === 'B') && stateOf(p.id) !== 'ok';
+// Lo que se pidió antes de que empiece Producción y a la hora límite todavía no se envió.
+function overdueItems() {
+  const now = Date.now(); const d0 = day0();
+  if (now < d0 + deadlineMin() * 60000) return [];
+  return prodList().filter((p) => needsSend(p) && !isSent(getSt(p.id))
+    && (getSt(p.id).since || 0) < d0 + PROD_START_MIN * 60000);
+}
+const sentToday = () => prodList().filter((p) => needsSend(p) && isSent(getSt(p.id)) && getSt(p.id).sentAt >= day0());
+const noteBlock = (st) => (st.note ? `<div class="cmt">💬 ${esc(st.note)}</div>` : '');
 
 /* ============================== arranque ============================== */
 async function boot() {
@@ -278,9 +306,9 @@ function tabsFor() {
     return [
       { id: 'comprar', label: 'Comprar', icon: '🛒', badge: buy },
       { id: 'preparar', label: 'Preparar', icon: '🍳', badge: prepItems().length },
-      { id: 'conteo', label: 'Conteo', icon: '🔢' },
-      { id: 'personas', label: 'Personas', icon: '👥', badge: pend },
-      { id: 'ajustes', label: 'Más', icon: '⚙️' },
+      { id: 'conteo', label: 'Llegadas', icon: '🔢' },
+      { id: 'avisos', label: 'Avisos', icon: '🔔', badge: overdueItems().length },
+      { id: 'ajustes', label: 'Más', icon: '⚙️', badge: pend },
     ];
   }
   if (r === 'produccion') {
@@ -293,6 +321,7 @@ function tabsFor() {
   return [
     { id: 'reporte', label: 'Reporte', icon: '📝' },
     { id: 'conteo', label: 'Llegadas', icon: '🔢' },
+    { id: 'avisos', label: 'Avisos', icon: '🔔', badge: overdueItems().length },
     { id: 'ajustes', label: 'Más', icon: '⚙️' },
   ];
 }
@@ -328,8 +357,11 @@ function currentView() {
     case 'hoy': return hoyView();
     case 'comprar': return comprarView();
     case 'preparar': return prepararView();
-    case 'personas': return personasView();
-    case 'ajustes': return S.sub === 'catalogo' && isAdmin() ? catalogoView() : ajustesView();
+    case 'avisos': return avisosView();
+    case 'ajustes':
+      if (S.sub === 'catalogo' && isAdmin()) return catalogoView();
+      if (S.sub === 'personas' && isAdmin()) return personasView();
+      return ajustesView();
     default: return '';
   }
 }
@@ -346,10 +378,12 @@ const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,
 function itemRow(p) {
   const st = getSt(p.id); const s = st.state || 'ok';
   const det = detailLine(p, st);
+  const sent = s !== 'ok' && needsSend(p) && isSent(st)
+    ? `<div class="sentb">📦 Producción envió a las ${hhmm(st.sentAt)}. Marca “Sí hay” cuando llegue.</div>` : '';
   return `<div class="item s-${s}" data-id="${p.id}">
     <div class="im" data-act="open" data-id="${p.id}">
       <div class="nm">${esc(p.name)}</div>
-      <div class="sb">${det || '<span class="hint">toca para anotar cantidad o comentario</span>'}</div>
+      <div class="sb">${det || '<span class="hint">toca para anotar cantidad o comentario</span>'}</div>${sent}
     </div>
     <div class="sts">${['out', 'low', 'ok'].map((k) =>
       `<button class="st ${k} ${s === k ? 'on' : ''}" data-act="state" data-id="${p.id}" data-s="${k}" aria-label="${STATES[k].label}">
@@ -359,10 +393,11 @@ function itemRow(p) {
 
 function reporteView(owner) {
   if (!S.loaded.products) return '<p class="muted pad">Cargando productos…</p>';
-  let list = prodList().filter((p) => p.owner === owner);
-  if (!list.length) {
+  const mine = prodList().filter((p) => p.owner === owner && !p.noReport);
+  if (!mine.length) {
     return `<p class="muted pad">Todavía no hay productos para ${esc(OWNERS[owner] || 'este perfil')}. La señora Elisa los agrega desde Más → Catálogo.</p>`;
   }
+  let list = mine;
   const q = norm(S.q.trim());
   if (q) list = list.filter((p) => norm(p.name).includes(q) || norm(p.section).includes(q));
   if (S.only) list = list.filter((p) => stateOf(p.id) !== 'ok');
@@ -373,11 +408,22 @@ function reporteView(owner) {
   list.forEach((p) => { (bySec[p.section] = bySec[p.section] || []).push(p); });
   const secs = SECTIONS.filter((s) => bySec[s]);
   Object.keys(bySec).forEach((s) => { if (!secs.includes(s)) secs.push(s); });
-  const notOk = prodList().filter((p) => p.owner === owner && stateOf(p.id) !== 'ok').length;
+  const notOk = mine.filter((p) => stateOf(p.id) !== 'ok').length;
+  const forceOpen = !!q || S.only;
+  const accordion = secs.map((s) => {
+    const items = bySec[s];
+    const out = items.filter((p) => stateOf(p.id) === 'out').length;
+    const low = items.filter((p) => stateOf(p.id) === 'low').length;
+    const open = forceOpen || S.open[s];
+    return `<button class="acc ${open ? 'on' : ''}" data-act="sec" data-sec="${esc(s)}">
+      <span class="at">${esc(s)}</span>
+      <span class="ac">${out ? `<b class="dot out">${out}</b>` : ''}${low ? `<b class="dot low">${low}</b>` : ''}<em>${items.length}</em></span>
+      <span class="car">▾</span></button>${open ? `<div class="accb">${items.map(itemRow).join('')}</div>` : ''}`;
+  }).join('');
   return `${rep ? `<div class="done">✓ Reporte enviado hoy a las ${hhmm(rep.at)} por ${esc((rep.byName || '').split(' ')[0])}</div>` : ''}
     ${filterBar()}
-    <div class="hint pad-s">${notOk ? `${notOk} producto(s) sin estar en verde` : 'Todo en verde'}. Solo toca lo que no está bien.</div>
-    ${secs.map((s) => `<h2 class="sec">${esc(s)}</h2>${bySec[s].map(itemRow).join('')}`).join('') || '<p class="muted pad">No hay resultados.</p>'}
+    <div class="hint pad-s">${notOk ? `${notOk} producto(s) sin estar en verde` : 'Todo en verde'}. Abre una sección y toca solo lo que no está bien.</div>
+    ${accordion || '<p class="muted pad">No hay resultados.</p>'}
     <div class="finish"><button class="btn primary xl" data-act="finish" data-owner="${owner}">✓ Terminé mi reporte</button>
     <p class="muted small">Lo que dejaste en verde queda confirmado como “Sí hay” por hoy.</p></div>`;
 }
@@ -416,8 +462,26 @@ function qtyWidget(p, mode, qty) {
     `<button class="${qty === i ? 'on' : ''}" data-act="qset" data-v="${i}">${l}</button>`).join('')}</div>`;
 }
 
+function renderLeftSheet() {
+  const sh = $('#sheet'); const z = S.sheet; const p = z.p;
+  const chips = p.modes.length > 1
+    ? `<div class="modes">${p.modes.map((m, i) =>
+      `<button class="mode ${m === z.mode ? 'on' : ''} ${i === 0 ? 'main' : 'alt'}" data-act="mode" data-m="${m}">${esc(i === 0 ? unitName(p, m) : 'o en ' + unitName(p, m))}</button>`).join('')}</div>` : '';
+  sh.innerHTML = `<div class="scrim" data-act="sheet-close"></div>
+    <div class="panel"><div class="grab"></div>
+      <h3>${esc(p.name)}</h3>
+      <div class="lbl">¿Cuánto sobró? <span class="muted">(aproximado)</span></div>
+      ${chips}
+      <div id="qwrap">${qtyWidget(p, z.mode, z.qty)}</div>
+      <div class="row"><button class="btn ghost" data-act="sheet-close">Cancelar</button>
+      <button class="btn primary" data-act="sheet-save">Guardar</button></div>
+    </div>`;
+  sh.classList.add('open');
+}
+
 function renderSheet() {
   const sh = $('#sheet'); const z = S.sheet; if (!z) return;
+  if (z.left) { renderLeftSheet(); return; }
   const p = z.p;
   const chips = p.modes.length > 1
     ? `<div class="modes">${p.modes.map((m, i) =>
@@ -439,7 +503,7 @@ function renderSheet() {
 }
 const unitName = (p, m) => {
   const mm = MODES[m];
-  if (mm.kind === 'bar') return `barra de ${(p.units && p.units[m]) || 'cantidad'}`;
+  if (mm.kind === 'bar') { const u = (p.units && p.units[m]) || 'cantidad'; return `barra ${/^de /.test(u) ? u : 'de ' + u}`; }
   if (mm.kind === 'yn') return 'hay / no hay';
   if (mm.kind === 'lvl') return 'poco / regular / sí hay';
   return unitOf(p, m);
@@ -463,10 +527,9 @@ function setQty(v) {
 
 /* ---------- Producción: Para hoy ---------- */
 const sevRank = (s) => (s === 'out' ? 0 : s === 'low' ? 1 : 2);
+const bySeverity = (a, b) => sevRank(stateOf(a.id)) - sevRank(stateOf(b.id)) || (getSt(a.id).since || 0) - (getSt(b.id).since || 0);
 function todayItems() {
-  return prodList().filter((p) => p.owner !== 'prod' && (p.camino === 'A' || p.camino === 'B')
-    && stateOf(p.id) !== 'ok')
-    .sort((a, b) => sevRank(stateOf(a.id)) - sevRank(stateOf(b.id)) || (getSt(a.id).since || 0) - (getSt(b.id).since || 0));
+  return prodList().filter((p) => needsSend(p) && !isSent(getSt(p.id))).sort(bySeverity);
 }
 function prepBlock(p) {
   const pr = PREP[PREP_OF[p.id]]; if (!pr) return '';
@@ -474,20 +537,67 @@ function prepBlock(p) {
 }
 function tagOf(p) { return `<span class="tag">${esc(OWNERS[p.owner] || p.owner)}</span>`; }
 
+// Último sobrante anotado de cada producto que solo se cuenta al final (quinua, aguas).
+function latestLeftovers() {
+  const out = [];
+  const keys = Object.keys(S.counts).filter((k) => k.endsWith('_p1')).sort().reverse();
+  prodList().filter((p) => p.leftOnly).forEach((p) => {
+    for (const k of keys) {
+      const it = (S.counts[k].items || {})[p.id];
+      if (it && it.left !== null && it.left !== undefined) { out.push({ p, it, date: S.counts[k].date }); break; }
+    }
+  });
+  return out;
+}
+const dateAgo = (d) => { const n = Math.round((Date.parse(dayKey()) - Date.parse(d)) / 86400000); return n <= 0 ? 'hoy' : n === 1 ? 'ayer' : `hace ${n} días`; };
+
 function hoyView() {
   if (!S.loaded.status) return '<p class="muted pad">Cargando…</p>';
-  const items = todayItems();
-  const okCount = prodList().filter((p) => p.owner !== 'prod' && (p.camino === 'A' || p.camino === 'B')).length - items.length;
+  const items = todayItems(); const sent = sentToday();
+  const okCount = prodList().filter((p) => p.owner !== 'prod' && (p.camino === 'A' || p.camino === 'B')).length - items.length - sent.length;
+  const left = latestLeftovers();
   return `<div class="lead"><b>${items.length}</b> ${items.length === 1 ? 'cosa' : 'cosas'} para preparar y enviar</div>
     ${items.map((p) => {
     const st = getSt(p.id); const s = st.state;
     return `<div class="card s-${s}"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}
       <span class="pill ${s}">${STATES[s].sym} ${STATES[s].label}</span></div>
-      <div class="sb">${detailLine(p, st) || ''}${st.since ? ` · desde ${ago(st.since)}` : ''}</div>
+      ${noteBlock(st)}
+      <div class="sb">${detailLine(p, st, false)}${st.since ? ` · desde ${ago(st.since)}` : ''}</div>
       ${p.camino === 'B' ? '<div class="note-b">Lo prepara la señora Elisa. Tú lo envías ya hecho.</div>' : ''}
-      ${prepBlock(p)}</div>`;
+      ${prepBlock(p)}
+      <button class="btn done-btn" data-act="sent" data-id="${p.id}">📦 Ya envié</button></div>`;
   }).join('') || '<p class="muted pad">Nada que preparar por ahora. ✅</p>'}
-    <p class="muted small pad">${okCount} producto(s) del puesto están en verde.</p>`;
+    ${sent.length ? `<h2 class="sec">Ya enviado hoy</h2>${sent.map((p) => {
+    const st = getSt(p.id);
+    return `<div class="card slim bought"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}
+      <span class="pill ok">📦 ${hhmm(st.sentAt)}</span></div>
+      <button class="link" data-act="unsent" data-id="${p.id}">No lo envié (deshacer)</button></div>`;
+  }).join('')}` : ''}
+    ${left.length ? `<h2 class="sec">Lo que sobró en el puesto (aprox.)</h2><div class="card slim">${left.map(({ p, it, date }) =>
+    `<div class="lrow"><span>${esc(p.name)}</span><b>${esc(fmtQty(p, { mode: it.leftMode, qty: it.left }))}</b><small>${dateAgo(date)}</small></div>`).join('')}</div>` : ''}
+    <p class="muted small pad">${Math.max(okCount, 0)} producto(s) del puesto están en verde.</p>`;
+}
+
+/* ---------- Avisos (Puesto y Adquisición) ---------- */
+function avisosView() {
+  if (!S.loaded.status) return '<p class="muted pad">Cargando…</p>';
+  const od = overdueItems(); const sent = sentToday();
+  const dl = String(S.config.sendDeadline || '07:00');
+  return `<div class="lead"><b>${od.length}</b> ${od.length === 1 ? 'cosa sin enviar' : 'cosas sin enviar'}</div>
+    <div class="hint pad-s">Lo que se pidió ayer y Producción no envió a las ${esc(dl)}.</div>
+    ${od.map((p) => {
+    const st = getSt(p.id);
+    return `<div class="card s-out"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}
+      <span class="pill out">⚠ Sin enviar</span></div>
+      ${noteBlock(st)}
+      <div class="sb">${detailLine(p, st, false)}${st.since ? ` · pedido ${ago(st.since)}` : ''}</div></div>`;
+  }).join('') || '<p class="muted pad">Nada pendiente. Todo lo pedido se envió o todavía está a tiempo. ✅</p>'}
+    ${sent.length ? `<h2 class="sec">Producción ya envió hoy</h2>${sent.map((p) => {
+    const st = getSt(p.id);
+    return `<div class="card slim bought"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}
+      <span class="pill ok">📦 ${hhmm(st.sentAt)}</span></div>
+      ${!isAdmin() ? '<div class="hint">Confírmalo en Reporte con “Sí hay” cuando llegue.</div>' : ''}</div>`;
+  }).join('')}` : ''}`;
 }
 
 /* ---------- Adquisición: Por comprar / Por preparar ---------- */
@@ -510,7 +620,8 @@ function buyCard(p, label) {
   const last = (st.buyDates || []).slice(-1)[0];
   return `<div class="card s-${s}"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}
     <span class="pill ${s}">${STATES[s].sym} ${STATES[s].label}</span></div>
-    <div class="sb">${detailLine(p, st) || ''}</div>
+    ${noteBlock(st)}
+    <div class="sb">${detailLine(p, st, false) || ''}</div>
     <div class="meta">${st.since ? `En ${s === 'out' ? 'falta' : 'poco'} ${ago(st.since)}.` : ''}
       ${last ? ` Última ${label === 'Comprado' ? 'compra' : 'vez'}: ${ago(last)}.` : ''}${iv ? ` Suele ser cada ~${iv} días.` : ''}</div>
     <button class="btn done-btn" data-act="bought" data-id="${p.id}">✔ ${label}</button></div>`;
@@ -536,7 +647,7 @@ function comprarView() {
     ${todo.map((p) => buyCard(p, 'Comprado')).join('') || '<p class="muted pad">Nada por comprar. ✅</p>'}
     ${info.length ? `<h2 class="sec">Lo prepara Producción (solo aviso)</h2>${info.map((p) => {
     const st = getSt(p.id);
-    return `<div class="card slim s-${st.state}"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}<span class="pill ${st.state}">${STATES[st.state].sym} ${STATES[st.state].label}</span></div><div class="sb">${detailLine(p, st)}</div></div>`;
+    return `<div class="card slim s-${st.state}"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}<span class="pill ${st.state}">${STATES[st.state].sym} ${STATES[st.state].label}</span></div>${noteBlock(st)}<div class="sb">${detailLine(p, st, false)}</div></div>`;
   }).join('')}` : ''}
     ${done.length ? `<h2 class="sec">Comprado, esperando que lo confirmen</h2>${done.map((p) => {
     const st = getSt(p.id);
@@ -554,50 +665,94 @@ function prepararView() {
   }).join('') || '<p class="muted pad">Nada por preparar. ✅</p>'}`;
 }
 
-/* ---------- Conteo de empanadas y pan ---------- */
+/* ---------- Llegadas: conteo de empanadas, pan y sobrantes ---------- */
 function countsDoc(owner, date) { return S.counts[`${date}_${owner}`] || { items: {} }; }
-function stepperCnt(pid, field, val, owner) {
-  return `<div class="stepper sm"><button data-act="cnt" data-pid="${pid}" data-f="${field}" data-d="-1" data-o="${owner}">−</button>
+function stepperCnt(pid, field, val, owner, cls = '') {
+  return `<div class="stepper mini ${cls}"><button data-act="cnt" data-pid="${pid}" data-f="${field}" data-d="-1" data-o="${owner}" aria-label="menos">−</button>
     <input inputmode="numeric" data-field="cnt" data-pid="${pid}" data-f="${field}" data-o="${owner}" placeholder="—" value="${val ?? ''}">
-    <button data-act="cnt" data-pid="${pid}" data-f="${field}" data-d="1" data-o="${owner}">+</button></div>`;
+    <button data-act="cnt" data-pid="${pid}" data-f="${field}" data-d="1" data-o="${owner}" aria-label="más">+</button></div>`;
 }
+const shortName = (n) => n.replace(/^Empanada (de )?/i, '').replace(/^./, (c) => c.toUpperCase());
+const COUNT_TITLES = { Empanadas: 'Empanadas, salteñas y papa rellena', 'Sándwiches': 'Pan' };
+
+function countRow(p, owner, doc, today) {
+  const it = (doc.items || {})[p.id] || {};
+  const exp = expectedFor(p, today); const open = !!S.cntOpen[p.id];
+  let llego;
+  if (exp !== null) {
+    const diff = it.arrived !== null && it.arrived !== undefined && it.arrived !== exp;
+    llego = `<div class="llw">${it.arrived === null || it.arrived === undefined
+      ? `<button class="ll" data-act="arrive-ok" data-pid="${p.id}" data-o="${owner}">✓ Llegó</button>`
+      : `<button class="ll on ${diff ? 'diff' : ''}" data-act="arrive-edit" data-pid="${p.id}">${it.arrived}${diff ? `<small>/${exp}</small>` : ''}</button>`}
+      <button class="ex ${open ? 'on' : ''}" data-act="arrive-edit" data-pid="${p.id}" aria-label="Ajustar cantidad">▾</button></div>`;
+  } else {
+    llego = stepperCnt(p.id, 'arrived', it.arrived, owner);
+  }
+  const who = it.at ? `<div class="who">${esc((it.byName || '').split(' ')[0])}, ${hhmm(it.at)}</div>` : '';
+  return `<div class="crow2"><div class="cn"><b>${esc(shortName(p.name))}</b>${exp !== null ? `<small>llegan ${exp}</small>` : ''}</div>
+    ${llego}${stepperCnt(p.id, 'left', it.left, owner, 'orange')}</div>
+    ${open && exp !== null ? `<div class="cadj"><span>Llegaron:</span>${stepperCnt(p.id, 'arrived', it.arrived ?? exp, owner)}
+      <button class="link" data-act="arrive-reset" data-pid="${p.id}" data-o="${owner}">Quitar</button></div>` : ''}${who}`;
+}
+
 function conteoView() {
   if (!S.loaded.products) return '<p class="muted pad">Cargando…</p>';
   const owner = isAdmin() ? S.countOwner : myOwner();
   const today = dayKey(); const doc = countsDoc(owner, today);
-  const emp = prodList().filter((p) => p.owner === owner && p.count);
-  const pan = prodList().filter((p) => p.owner === owner && (p.id === 'pan3' || p.id === 'panR'));
-  const row = (p) => {
+  const all = prodList().filter((p) => p.owner === owner);
+  const counted = all.filter((p) => p.count);
+  const groups = {};
+  counted.forEach((p) => { (groups[p.section] = groups[p.section] || []).push(p); });
+  const leftOnly = all.filter((p) => p.leftOnly);
+  const pendingAll = counted.filter((p) => {
     const it = (doc.items || {})[p.id] || {};
-    return `<div class="crow"><div class="nm">${esc(p.name)}</div>
-      <div class="cc"><label>Llegaron</label>${stepperCnt(p.id, 'arrived', it.arrived, owner)}</div>
-      <div class="cc"><label>Sobraron</label>${stepperCnt(p.id, 'left', it.left, owner)}</div>
-      ${it.at ? `<div class="who">${esc((it.byName || '').split(' ')[0])}, ${hhmm(it.at)}</div>` : ''}</div>`;
-  };
+    return expectedFor(p, today) !== null && (it.arrived === null || it.arrived === undefined);
+  });
+  const table = (title, items) => `<h2 class="sec">${esc(title)}</h2>
+    <div class="ctable"><div class="chead"><span>Producto</span><span>Llegó</span><span class="o">Sobró</span></div>
+    ${items.map((p) => countRow(p, owner, doc, today)).join('')}</div>`;
+  const leftTable = leftOnly.length ? `<h2 class="sec">Desayuno y aguas: lo que sobró <span class="muted">(aprox.)</span></h2>
+    <div class="ctable">${leftOnly.map((p) => {
+    const it = (doc.items || {})[p.id] || {};
+    const v = it.left !== null && it.left !== undefined ? fmtQty(p, { mode: it.leftMode, qty: it.left }) : '';
+    return `<div class="crow2 one"><div class="cn"><b>${esc(p.name)}</b></div>
+      <button class="sob ${v ? 'on' : ''}" data-act="left-open" data-pid="${p.id}" data-o="${owner}">${v ? esc(v) : 'Anotar sobrante'}</button></div>`;
+  }).join('')}</div>` : '';
   const days = [...new Set(Object.keys(S.counts).map((k) => k.split('_')[0]))].sort().reverse().slice(0, 7);
   const hist = isAdmin() ? `<h2 class="sec">Días anteriores</h2>${days.filter((d) => d !== today).map((d) => {
-    const dd = countsDoc(owner, d); const its = Object.entries(dd.items || {}).filter(([, v]) => v.arrived != null || v.left != null);
+    const dd = countsDoc(owner, d);
+    const its = Object.entries(dd.items || {}).filter(([, v]) => (v.arrived !== null && v.arrived !== undefined) || (v.left !== null && v.left !== undefined));
     if (!its.length) return '';
-    return `<div class="card slim"><div class="ct"><div class="nm">${d}</div></div><div class="sb">${its.map(([pid, v]) =>
-      `${esc((S.products[pid] || {}).name || pid)}: llegó ${v.arrived ?? '—'}, sobró ${v.left ?? '—'}`).join('<br>')}</div></div>`;
+    return `<div class="card slim"><div class="ct"><div class="nm">${d}</div></div><div class="sb">${its.map(([pid, v]) => {
+      const pr = S.products[pid] || {}; const e = expectedFor({ ...pr }, d);
+      const left = v.left !== null && v.left !== undefined ? (pr.leftOnly ? fmtQty({ ...pr, id: pid }, { mode: v.leftMode, qty: v.left }) : v.left) : '—';
+      return `${esc(pr.name || pid)}: ${pr.leftOnly ? '' : `llegó ${v.arrived ?? '—'}${e !== null && v.arrived !== e && v.arrived !== undefined && v.arrived !== null ? ` (esperado ${e})` : ''}, `}sobró ${left}`;
+    }).join('<br>')}</div></div>`;
   }).join('') || '<p class="muted pad">Todavía no hay días anteriores.</p>'}` : '';
   return `${isAdmin() ? `<div class="chipsrow">${['p1', 'p2'].map((o) =>
     `<button class="fchip ${S.countOwner === o ? 'on' : ''}" data-act="cowner" data-o="${o}">${OWNERS[o]}</button>`).join('')}</div>` : ''}
     <div class="lead">Hoy, ${today}</div>
-    <h2 class="sec">Empanadas, salteñas y papa rellena</h2>
-    ${emp.map(row).join('') || '<p class="muted pad">No hay productos con conteo.</p>'}
-    <h2 class="sec">Pan <span class="muted">(opcional)</span></h2>
-    ${pan.map(row).join('')}
+    ${pendingAll.length ? `<div class="pad-s"><button class="btn primary xl" data-act="arrive-all" data-o="${owner}">✓ Llegó todo lo de hoy</button>
+      <p class="hint">Si algo llegó de menos o de más, toca la flecha ▾ de ese producto.</p></div>` : ''}
+    ${Object.keys(groups).map((g) => table(COUNT_TITLES[g] || g, groups[g])).join('') || '<p class="muted pad">No hay productos con conteo.</p>'}
+    ${leftTable}
     ${hist}`;
 }
-async function saveCount(owner, pid, field, val) {
+// Guarda cambios del conteo de hoy: patches = { productId: { campo: valor } }
+async function saveCountMany(owner, patches) {
   const date = dayKey(); const id = `${date}_${owner}`;
   const cur = S.counts[id] || { date, owner, items: {} };
-  const it = { ...(cur.items[pid] || {}), [field]: val, by: S.user.uid, byName: S.me.name || '', at: B.now() };
-  S.counts[id] = { ...cur, date, owner, items: { ...cur.items, [pid]: it } };
+  const items = { ...cur.items }; const sent = {};
+  const meta = { by: S.user.uid, byName: S.me.name || '', at: B.now() };
+  Object.entries(patches).forEach(([pid, patch]) => {
+    items[pid] = { ...(items[pid] || {}), ...patch, ...meta };
+    sent[pid] = { ...patch, ...meta };
+  });
+  S.counts[id] = { ...cur, date, owner, items };
   render();
-  try { await B.set('counts/' + id, { date, owner, items: { [pid]: it } }); } catch (e) { toast('No se pudo guardar el conteo.'); }
+  try { await B.set('counts/' + id, { date, owner, items: sent }); } catch (e) { toast('No se pudo guardar el conteo.'); }
 }
+const saveCountItem = (owner, pid, patch) => saveCountMany(owner, { [pid]: patch });
 
 /* ---------- Personas ---------- */
 function personasView() {
@@ -605,7 +760,8 @@ function personasView() {
     .sort((a, b) => (a.role === 'pending' ? -1 : 1) - (b.role === 'pending' ? -1 : 1) || (a.name || '').localeCompare(b.name || ''));
   const opt = (sel) => ['puesto1', 'puesto2', 'produccion'].map((r) =>
     `<option value="${r}" ${sel === r ? 'selected' : ''}>${ROLES[r]}</option>`).join('');
-  return `<div class="lead"><b>${us.filter((u) => u.role === 'pending').length}</b> esperando aprobación</div>
+  return `<button class="btn ghost small" data-act="catalogo-back">← Volver</button>
+  <div class="lead"><b>${us.filter((u) => u.role === 'pending').length}</b> esperando aprobación</div>
   ${us.map((u) => u.role === 'pending'
     ? `<div class="card pend"><div class="ct"><div class="nm">${esc(u.name)}</div></div><div class="sb">${esc(u.email)}</div>
       <select id="role-${u.uid}" class="sel">${opt('puesto1')}</select>
@@ -634,6 +790,10 @@ function ajustesView() {
     <div class="card slim"><label class="lbl">Teléfono de la señora Elisa (para el botón “Llamar”)</label>
       <input id="phone" type="tel" inputmode="tel" class="inp" value="${esc(S.config.adminPhone || '')}" placeholder="9XXXXXXXX">
       <button class="btn small primary" data-act="savephone">Guardar teléfono</button></div>
+    <div class="card slim"><label class="lbl">Hora límite para que Producción envíe (si no, sale en Avisos)</label>
+      <input id="deadline" type="time" class="inp" value="${esc(S.config.sendDeadline || '07:00')}">
+      <button class="btn small primary" data-act="savedeadline">Guardar hora</button></div>
+    <button class="btn ghost" data-act="personas">👥 Personas${Object.values(S.users).filter((u) => u.role === 'pending').length ? ` (${Object.values(S.users).filter((u) => u.role === 'pending').length} por aprobar)` : ''}</button>
     <button class="btn ghost" data-act="catalogo">Catálogo de productos</button>` : ''}
   <div class="pad"><button class="btn ghost" data-act="signout">Cerrar sesión</button></div>
   <p class="muted small pad">Versión 1</p>`;
@@ -652,6 +812,10 @@ function catalogoView() {
     `<div class="card slim ${p.active === false ? 'off' : ''}" data-act="pedit" data-id="${p.id}"><div class="ct"><div class="nm">${esc(p.name)}</div>
       <span class="tag">Camino ${esc(p.camino)}</span>${p.early ? '<span class="tag">aviso temprano</span>' : ''}${p.active === false ? '<span class="tag">oculto</span>' : ''}</div></div>`).join('')}`).join('')}`;
 }
+const expVal = (p, k) => {
+  const e = p.expected; if (e === null || e === undefined) return '';
+  return typeof e === 'number' ? e : (e[k] ?? '');
+};
 function openProductForm(id) {
   const p = id ? { ...S.products[id], id } : { id: '', name: '', section: 'Sándwiches', owner: 'p1', camino: 'C', modes: ['un'], units: {}, early: false, active: true };
   S.sheet = { form: true, p };
@@ -666,10 +830,23 @@ function openProductForm(id) {
     <label class="lbl">Camino</label><select id="f-camino" class="sel">${sel([['A', 'A · Lo prepara Producción'], ['B', 'B · Lo prepara Elisa, Producción lo envía'], ['C', 'C · Elisa se encarga de todo'], ['D', 'D · Proveedor'], ['E', 'E · Lo recogen los trabajadores']], p.camino)}</select>
     <label class="lbl">Forma principal de medir</label><select id="f-mode" class="sel">${sel(Object.entries(MODES).map(([k, m]) => [k, m.name]), p.modes[0])}</select>
     <label class="lbl">Texto de la unidad <span class="muted">(opcional, ej. latas)</span></label><input id="f-unit" class="inp" value="${esc((p.units || {})[p.modes[0]] || '')}">
+    <label class="lbl">Cantidad que llega cada día <span class="muted">(opcional, para Llegadas)</span></label>
+    <div class="exp3"><label>Lun a vie<input id="f-elv" type="number" inputmode="numeric" class="inp" value="${esc(expVal(p, 'lv'))}"></label>
+      <label>Sábado<input id="f-esab" type="number" inputmode="numeric" class="inp" value="${esc(expVal(p, 'sab'))}"></label>
+      <label>Domingo<input id="f-edom" type="number" inputmode="numeric" class="inp" value="${esc(expVal(p, 'dom'))}"></label></div>
+    <label class="chk"><input type="checkbox" id="f-count" ${p.count ? 'checked' : ''}> Se cuenta en Llegadas (llegó / sobró)</label>
+    <label class="chk"><input type="checkbox" id="f-inrep" ${p.noReport ? '' : 'checked'}> Aparece en Reporte (Falta / Hay poco / Sí hay)</label>
     <label class="chk"><input type="checkbox" id="f-early" ${p.early ? 'checked' : ''}> Aviso temprano (avisa también cuando hay poco)</label>
     <label class="chk"><input type="checkbox" id="f-active" ${p.active !== false ? 'checked' : ''}> Visible</label>
     <div class="row"><button class="btn ghost" data-act="sheet-close">Cancelar</button><button class="btn primary" data-act="psave" data-id="${esc(id)}">Guardar</button></div></div>`;
   sh.classList.add('open');
+}
+function readExpected() {
+  const g = (i) => { const v = $(i).value.trim(); return v === '' ? null : Math.max(0, parseInt(v, 10) || 0); };
+  const e = { lv: g('#f-elv'), sab: g('#f-esab'), dom: g('#f-edom') };
+  if (e.lv === null && e.sab === null && e.dom === null) return null;
+  Object.keys(e).forEach((k) => { if (e[k] === null) delete e[k]; });
+  return e;
 }
 async function saveProductForm(id) {
   const name = $('#f-name').value.trim(); if (!name) { toast('Escribe el nombre'); return; }
@@ -682,6 +859,7 @@ async function saveProductForm(id) {
   const data = {
     name, owner: $('#f-owner').value, section: $('#f-section').value, camino: $('#f-camino').value,
     modes, units, early: $('#f-early').checked, active: $('#f-active').checked,
+    count: $('#f-count').checked, noReport: !$('#f-inrep').checked, expected: readExpected(),
     order: old ? (old.order ?? maxOrder + 1) : maxOrder + 1,
   };
   closeSheet();
@@ -751,7 +929,12 @@ document.addEventListener('click', async (e) => {
     case 'qset': setQty(+t.dataset.v === S.sheet.qty ? null : +t.dataset.v); break;
     case 'qclear': setQty(null); break;
     case 'sheet-save': {
-      const z = S.sheet; z.note = ($('#note') || { value: z.note }).value.trim();
+      const z = S.sheet;
+      if (z.left) {
+        const { owner, id, qty, mode } = z; closeSheet();
+        await saveCountItem(owner, id, { left: qty, leftMode: qty === null ? null : mode }); break;
+      }
+      z.note = ($('#note') || { value: z.note }).value.trim();
       const patch = { state: z.state, mode: z.qty === null ? null : z.mode, qty: z.qty, note: z.note };
       closeSheet(); await saveStatus(z.p, patch); break;
     }
@@ -777,9 +960,49 @@ document.addEventListener('click', async (e) => {
     case 'toast-action': if (toast.action) toast.action.fn(); $('#toast').classList.remove('show'); break;
     case 'cnt': {
       const { pid, f, o } = t.dataset; const it = ((countsDoc(o, dayKey()).items || {})[pid]) || {};
-      const cur = it[f] == null ? 0 : +it[f];
-      saveCount(o, pid, f, Math.max(0, cur + +t.dataset.d)); break;
+      const exp = expectedFor(S.products[pid] || {}, dayKey());
+      const cur = it[f] != null ? +it[f] : (f === 'arrived' && exp !== null ? exp : 0);
+      saveCountItem(o, pid, { [f]: Math.max(0, cur + +t.dataset.d) }); break;
     }
+    case 'arrive-ok': {
+      const exp = expectedFor(S.products[t.dataset.pid] || {}, dayKey());
+      if (exp !== null) saveCountItem(t.dataset.o, t.dataset.pid, { arrived: exp });
+      break;
+    }
+    case 'arrive-edit': S.cntOpen[t.dataset.pid] = !S.cntOpen[t.dataset.pid]; render(); break;
+    case 'arrive-reset': saveCountItem(t.dataset.o, t.dataset.pid, { arrived: null }); break;
+    case 'arrive-all': {
+      const o = t.dataset.o; const today = dayKey(); const doc = countsDoc(o, today); const patches = {};
+      prodList().filter((p) => p.owner === o && p.count).forEach((p) => {
+        const exp = expectedFor(p, today); const it = (doc.items || {})[p.id] || {};
+        if (exp !== null && (it.arrived === null || it.arrived === undefined)) patches[p.id] = { arrived: exp };
+      });
+      if (Object.keys(patches).length) { await saveCountMany(o, patches); toast('Anotado: llegó todo lo esperado ✓'); }
+      break;
+    }
+    case 'left-open': {
+      const p = S.products[t.dataset.pid]; if (!p) break;
+      const it = ((countsDoc(t.dataset.o, dayKey()).items || {})[t.dataset.pid]) || {};
+      S.sheet = { left: true, owner: t.dataset.o, id: t.dataset.pid, p: { ...p, id: t.dataset.pid },
+        mode: it.leftMode || p.modes[0], qty: it.left ?? null, state: 'ok' };
+      renderSheet(); break;
+    }
+    case 'sec': S.open[t.dataset.sec] = !S.open[t.dataset.sec]; render(); break;
+    case 'sent': {
+      const id = t.dataset.id; const st = getSt(id); const now = B.now();
+      const prev = { sentAt: st.sentAt || null, sentBy: st.sentBy || null, sentByName: st.sentByName || null };
+      const d = { sentAt: now, sentBy: S.user.uid, sentByName: S.me.name || '' };
+      S.status[id] = { ...st, ...d }; render();
+      B.set('status/' + id, d).catch(() => toast('No se pudo guardar.'));
+      toast('Enviado ✓', false, { label: 'Deshacer', fn: () => { S.status[id] = { ...S.status[id], ...prev }; render(); B.set('status/' + id, prev); } });
+      break;
+    }
+    case 'unsent': {
+      const id = t.dataset.id; const prev = { sentAt: null, sentBy: null, sentByName: null };
+      S.status[id] = { ...getSt(id), ...prev }; render(); B.set('status/' + id, prev); break;
+    }
+    case 'personas': S.sub = 'personas'; render(); break;
+    case 'savedeadline': await B.set('config/app', { sendDeadline: $('#deadline').value || '07:00' }); toast('Hora guardada'); break;
     case 'approve': {
       const uid = t.dataset.uid; const r = document.getElementById('role-' + uid).value;
       await B.set('users/' + uid, { role: r, approvedAt: B.now() }); toast('Cuenta aprobada'); break;
@@ -826,10 +1049,13 @@ document.addEventListener('change', async (e) => {
     setQty(Number.isNaN(n) ? null : n);
   } else if (f === 'cnt') {
     const v = t.value.trim(); if (v === '') return;
-    saveCount(t.dataset.o, t.dataset.pid, t.dataset.f, Math.max(0, parseInt(v, 10) || 0));
+    saveCountItem(t.dataset.o, t.dataset.pid, { [t.dataset.f]: Math.max(0, parseInt(v, 10) || 0) });
   } else if (f === 'role') {
     await B.set('users/' + t.dataset.uid, { role: t.value }); toast('Perfil cambiado');
   }
 });
+
+// Sin zoom: ni al tocar rápido ni al pellizcar.
+['gesturestart', 'gesturechange', 'gestureend'].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault()));
 
 boot();

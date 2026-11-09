@@ -86,6 +86,8 @@ async function loadState() {
 }
 const stateOf = (st, id) => (st[id] && st[id].state) || 'ok';
 const bought = (s) => !!(s && s.boughtAt && (!s.since || s.boughtAt >= s.since));
+const sentOk = (s) => !!(s && s.sentAt && (!s.since || s.sentAt >= s.since));
+const day0 = Date.parse(today + 'T00:00:00-05:00');
 const names = (arr) => arr.map((p) => p.name).join(', ');
 const rank = (st, p) => (stateOf(st, p.id) === 'out' ? 0 : 1);
 
@@ -108,10 +110,17 @@ async function adminSummary(title, state) {
 }
 async function prodSummary(state) {
   const { products, status } = state;
-  const items = products.filter((p) => p.owner !== 'prod' && (p.camino === 'A' || p.camino === 'B') && stateOf(status, p.id) !== 'ok')
+  const items = products.filter((p) => p.owner !== 'prod' && (p.camino === 'A' || p.camino === 'B') && stateOf(status, p.id) !== 'ok' && !sentOk(status[p.id]))
     .sort((a, b) => rank(status, a) - rank(status, b));
   if (!items.length) return null;
   return { title: `Para hoy: ${items.length} ${items.length === 1 ? 'cosa' : 'cosas'} por preparar o enviar`, body: names(items).slice(0, 300), tag: 'resumen', urgent: '0', url: './' };
+}
+async function notSentSummary({ products, status }) {
+  const late = products.filter((p) => p.owner !== 'prod' && (p.camino === 'A' || p.camino === 'B')
+    && stateOf(status, p.id) !== 'ok' && !sentOk(status[p.id])
+    && ((status[p.id] && status[p.id].since) || 0) < day0 + 4.5 * 3600000);
+  if (!late.length) return null;
+  return { title: `Producción no ha enviado: ${late.length}`, body: names(late).slice(0, 300), tag: 'no-enviado', urgent: '1', url: './' };
 }
 async function hasReport(owner) {
   const s = await db.collection('reports').where('date', '==', today).where('owner', '==', owner).limit(1).get();
@@ -119,8 +128,13 @@ async function hasReport(owner) {
 }
 const reminder = (text) => ({ title: 'Actualiza la lista del puesto', body: text, tag: 'recordatorio', urgent: '0', url: './' });
 
+const cfg = (await db.collection('config').doc('app').get()).data() || {};
+const [dh, dm] = String(cfg.sendDeadline || '07:00').split(':').map(Number);
+const DEADLINE = (dh || 0) * 60 + (dm || 0);
+
 const SLOTS = [
   { id: '0415', min: 4 * 60 + 15, run: async (st) => { const p = await prodSummary(st); return p && [{ roles: ['produccion'], payload: p }]; } },
+  { id: 'envio', min: DEADLINE, run: async (st) => { const p = await notSentSummary(st); return p && [{ roles: ['admin', 'puesto1', 'puesto2'], payload: p }]; } },
   { id: '0600', min: 6 * 60, run: async (st) => { const p = await adminSummary('Resumen de las 6:00', st); return p && [{ roles: ['admin'], payload: p }]; } },
   { id: '1200', min: 12 * 60, run: async (st) => { const p = await adminSummary('Resumen de las 12:00', st); return p && [{ roles: ['admin'], payload: p }]; } },
   { id: '1230', min: 12 * 60 + 30, run: async () => [{ roles: ['puesto1', 'puesto2'], payload: reminder('Toca lo que falta y al final “Terminé mi reporte”.') }] },

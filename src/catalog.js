@@ -33,9 +33,21 @@ export const ROLES = {
 export const ROLE_OWNER = { puesto1: 'p1', puesto2: 'p2', produccion: 'prod' };
 
 export const SECTIONS = [
-  'Sándwiches', 'Empanadas', 'Gelatinas', 'Desayuno y aguas', 'Jugos', 'Gaseosas',
+  'Sándwiches', 'Jugos', 'Gelatinas', 'Gaseosas', 'Plásticos y bolsas', 'Desayuno y aguas', 'Empanadas',
   'Carnes y verduras crudas', 'Aderezos', 'Frutas',
 ];
+
+// Versión del catálogo. Al subirla, el script scheduler/migrate.mjs actualiza los productos
+// ya cargados en Firestore (solo los campos de patchFields) y borra los de MIGRATION_DELETE.
+export const CATALOG_VERSION = 2;
+export const MIGRATION_DELETE = ['chis_sand', 'chis_emp', 'chis_gel', 'chis_des'];
+export const patchFields = (p) => {
+  const o = {};
+  ['name', 'section', 'modes', 'units', 'count', 'noReport', 'leftOnly', 'expected'].forEach((k) => {
+    if (p[k] !== undefined) o[k] = p[k];
+  });
+  return o;
+};
 
 // Lo que lleva cada preparación (se muestra chico en la pantalla de Producción).
 export const PREP = {
@@ -60,14 +72,17 @@ export const PREP = {
 const P = (id, name, section, owner, camino, modes, extra = {}) =>
   ({ id, name, section, owner, camino, modes, ...extra });
 
+// Cantidad que llega cada día: lv = lunes a viernes, sab = sábado, dom = domingo.
+const PAN_ESPERADO = { lv: 36, sab: 60, dom: 84 };
+
 const FRUTA_UN = ['un', 'kg', 'lvl'];
 const FRUTA_KG = ['kg', 'un', 'lvl'];
 const VERDURA = ['kg', 'lvl', 'un'];
 
 export const PRODUCTS = [
   // ---------- PUESTO 1 · Sándwiches ----------
-  P('pan3', 'Pan de tres puntas', 'Sándwiches', 'p1', 'E', ['un'], { units: { un: 'panes' } }),
-  P('panR', 'Pan redondo', 'Sándwiches', 'p1', 'E', ['un'], { units: { un: 'panes' } }),
+  P('pan3', 'Pan de tres puntas', 'Sándwiches', 'p1', 'E', ['un'], { units: { un: 'panes' }, count: true, expected: PAN_ESPERADO }),
+  P('panR', 'Pan redondo', 'Sándwiches', 'p1', 'E', ['un'], { units: { un: 'panes' }, count: true }),
   P('pollo', 'Pollo cocido', 'Sándwiches', 'p1', 'B', ['kg'], { early: true }),
   P('cabeza', 'Cabeza de chancho preparada', 'Sándwiches', 'p1', 'A', ['kg']),
   P('lechon', 'Lechón', 'Sándwiches', 'p1', 'C', ['bar', 'kg'], { early: true, units: { bar: 'pierna' } }),
@@ -83,42 +98,39 @@ export const PRODUCTS = [
   P('encurtido', 'Encurtido', 'Sándwiches', 'p1', 'C', ['bar'], { units: { bar: 'frasco' } }),
   P('vinagreta', 'Vinagreta', 'Sándwiches', 'p1', 'C', ['bar'], { units: { bar: 'frasco' } }),
   P('papita', 'Papitas al hilo', 'Sándwiches', 'p1', 'C', ['kg']),
-  P('sanguchera', 'Sanguchera', 'Sándwiches', 'p1', 'C', ['pack']),
-  P('b8x12', 'Bolsa 8x12', 'Sándwiches', 'p1', 'C', ['pack']),
-  P('chis_sand', 'Bolsa chismosa (sándwiches)', 'Sándwiches', 'p1', 'C', ['pack']),
+  P('sanguchera', 'Sanguchera', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
+  P('chismosa', 'Bolsa chismosa', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
+  P('b8x12', 'Bolsa 8x12', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
 
   // ---------- PUESTO 1 · Empanadas (proveedor) ----------
-  P('emp_queso', 'Empanada de queso', 'Empanadas', 'p1', 'D', ['un'], { count: true }),
-  P('emp_pizza', 'Empanada de pizza', 'Empanadas', 'p1', 'D', ['un'], { count: true }),
-  P('emp_pollo', 'Empanada de pollo', 'Empanadas', 'p1', 'D', ['un'], { count: true }),
-  P('emp_mixta', 'Empanada mixta', 'Empanadas', 'p1', 'D', ['un'], { count: true }),
-  P('emp_arabe', 'Empanada árabe', 'Empanadas', 'p1', 'D', ['un'], { count: true }),
-  P('saltena', 'Salteña', 'Empanadas', 'p1', 'D', ['un'], { count: true }),
-  P('papa_rell', 'Papa rellena', 'Empanadas', 'p1', 'D', ['un'], { count: true }),
-  P('bp1', 'Bolsa de papel 1', 'Empanadas', 'p1', 'C', ['pack']),
-  P('bp2', 'Bolsa de papel 2', 'Empanadas', 'p1', 'C', ['pack']),
-  P('bp3', 'Bolsa de papel 3', 'Empanadas', 'p1', 'C', ['pack']),
-  P('chis_emp', 'Bolsa chismosa (empanadas)', 'Empanadas', 'p1', 'C', ['pack']),
+  P('emp_queso', 'Empanada de queso', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true }),
+  P('emp_pizza', 'Empanada de pizza', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true }),
+  P('emp_pollo', 'Empanada de pollo', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true }),
+  P('emp_mixta', 'Empanada mixta', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true }),
+  P('emp_arabe', 'Empanada árabe', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true }),
+  P('saltena', 'Salteña', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true }),
+  P('papa_rell', 'Papa rellena', 'Empanadas', 'p1', 'D', ['un'], { count: true, noReport: true }),
+  P('bp1', 'Bolsa de papel 1', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
+  P('bp2', 'Bolsa de papel 2', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
+  P('bp3', 'Bolsa de papel 3', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
 
   // ---------- PUESTO 1 · Gelatinas ----------
   P('gel_fresa', 'Gelatina de fresa', 'Gelatinas', 'p1', 'B', ['kg']),
   P('gel_pina', 'Gelatina de piña', 'Gelatinas', 'p1', 'B', ['un']),
-  P('vaso_peq', 'Vaso pequeño', 'Gelatinas', 'p1', 'C', ['pack']),
-  P('cucharilla', 'Cucharilla', 'Gelatinas', 'p1', 'C', ['pack']),
-  P('chis_gel', 'Bolsa chismosa (gelatinas)', 'Gelatinas', 'p1', 'C', ['pack']),
+  P('vaso_peq', 'Vaso pequeño (vaso de gelatina)', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
+  P('cucharilla', 'Cucharilla', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
 
   // ---------- PUESTO 1 · Desayuno y aguas ----------
-  P('quinua', 'Desayuno de quinua', 'Desayuno y aguas', 'p1', 'A', ['lt', 'un'], { units: { un: 'porciones de 500 ml' } }),
-  P('agua_pina', 'Agua de piña', 'Desayuno y aguas', 'p1', 'A', ['lt', 'un'], { units: { un: 'porciones de 500 ml' } }),
-  P('agua_mara', 'Agua de maracuyá', 'Desayuno y aguas', 'p1', 'A', ['lt', 'un'], { units: { un: 'porciones de 500 ml' } }),
-  P('agua_manz', 'Agua de manzana', 'Desayuno y aguas', 'p1', 'A', ['lt', 'un'], { units: { un: 'porciones de 500 ml' } }),
+  P('quinua', 'Desayuno de quinua', 'Desayuno y aguas', 'p1', 'A', ['lt', 'bar'], { units: { bar: 'de lo preparado' }, leftOnly: true, noReport: true }),
+  P('agua_pina', 'Agua de piña', 'Desayuno y aguas', 'p1', 'A', ['lt', 'bar'], { units: { bar: 'de lo preparado' }, leftOnly: true, noReport: true }),
+  P('agua_mara', 'Agua de maracuyá', 'Desayuno y aguas', 'p1', 'A', ['lt', 'bar'], { units: { bar: 'de lo preparado' }, leftOnly: true, noReport: true }),
+  P('agua_manz', 'Agua de manzana', 'Desayuno y aguas', 'p1', 'A', ['lt', 'bar'], { units: { bar: 'de lo preparado' }, leftOnly: true, noReport: true }),
   P('agua_herv', 'Agua hervida', 'Desayuno y aguas', 'p1', 'A', ['lt', 'un'], { units: { un: 'porciones de 500 ml' } }),
-  P('bolsa1', 'Bolsa de 1 porción', 'Desayuno y aguas', 'p1', 'C', ['pack']),
-  P('bolsa2', 'Bolsa de 2 porciones', 'Desayuno y aguas', 'p1', 'C', ['pack']),
-  P('bolsa3', 'Bolsa de 3 porciones', 'Desayuno y aguas', 'p1', 'C', ['pack']),
-  P('chis_des', 'Bolsa chismosa (desayuno)', 'Desayuno y aguas', 'p1', 'C', ['pack']),
-  P('bot_peq', 'Botella pequeña', 'Desayuno y aguas', 'p1', 'C', ['un', 'bar'], { units: { un: 'botellas', bar: 'paquete' } }),
-  P('bot_gra', 'Botella grande', 'Desayuno y aguas', 'p1', 'C', ['un', 'bar'], { units: { un: 'botellas', bar: 'paquete' } }),
+  P('bolsa1', 'Bolsa de 1 porción', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
+  P('bolsa2', 'Bolsa de 2 porciones', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
+  P('bolsa3', 'Bolsa de 3 porciones', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
+  P('bot_peq', 'Botella pequeña', 'Plásticos y bolsas', 'p1', 'C', ['un', 'bar'], { units: { un: 'botellas', bar: 'paquete' } }),
+  P('bot_gra', 'Botella grande', 'Plásticos y bolsas', 'p1', 'C', ['un', 'bar'], { units: { un: 'botellas', bar: 'paquete' } }),
 
   // ---------- PUESTO 1 · Jugos ----------
   P('j_fresa', 'Fresa', 'Jugos', 'p1', 'C', FRUTA_KG),
@@ -141,8 +153,8 @@ export const PRODUCTS = [
   P('miel', 'Miel', 'Jugos', 'p1', 'C', ['bar', 'un'], { units: { bar: 'frasco', un: 'frascos' } }),
   P('algarrobina', 'Algarrobina', 'Jugos', 'p1', 'C', ['bar', 'un'], { units: { bar: 'frasco', un: 'frascos' } }),
   P('huevo', 'Huevo', 'Jugos', 'p1', 'C', ['un'], { units: { un: 'huevos' } }),
-  P('vaso_llevar', 'Vasos de plástico para llevar', 'Jugos', 'p1', 'C', ['pack']),
-  P('sorbetes', 'Sorbetes', 'Jugos', 'p1', 'C', ['pack']),
+  P('vaso_llevar', 'Vasos de plástico para llevar', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
+  P('sorbetes', 'Sorbetes', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
 
   // ---------- PUESTO 1 · Gaseosas ----------
   P('coca', 'Coca Cola', 'Gaseosas', 'p1', 'C', ['un']),
