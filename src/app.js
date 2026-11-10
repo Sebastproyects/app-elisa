@@ -218,8 +218,8 @@ function startWatchers() {
     S.status = m; S.loaded.status = true; render();
   }));
   unsubs.push(B.watch('config/app', (c) => { S.config = c || {}; render(); }));
-  unsubs.push(B.watch('reports', (m) => { S.reports = m; render(); }, { last: 30 }));
-  unsubs.push(B.watch('counts', (m) => { S.counts = m; render(); }, { last: 14 }));
+  unsubs.push(B.watch('reports', (m) => { S.reports = m; render(); }, { days: 30 }));
+  unsubs.push(B.watch('counts', (m) => { S.counts = m; render(); }, { days: 14 }));
   if (S.me.role === 'admin') unsubs.push(B.watch('users', (m) => { S.users = m; render(); }));
 }
 
@@ -335,13 +335,15 @@ function render() {
   if (S.me.role === 'pending') { app.innerHTML = pendingView(); return; }
   const tabs = tabsFor();
   if (!S.tab || !tabs.find((t) => t.id === S.tab)) S.tab = tabs[0].id;
+  const tabChanged = S.shownTab !== S.tab; S.shownTab = S.tab;
   app.innerHTML = `
     ${headerView()}
-    <main>${banners()}${currentView()}</main>
+    <main class="${tabChanged ? 'enter' : ''}">${banners()}${currentView()}</main>
     <nav class="tabbar" style="--n:${tabs.length}">
-      ${tabs.map((t) => `<button class="tab ${t.id === S.tab ? 'on' : ''}" data-act="tab" data-tab="${t.id}">
+      ${tabs.map((t) => `<button class="tab ${t.id === S.tab ? 'on' : ''} ${t.id === S.tab && tabChanged ? 'pop' : ''}" data-act="tab" data-tab="${t.id}">
         <span class="ti">${t.icon}</span><span>${t.label}</span>${t.badge ? `<b class="badge">${t.badge}</b>` : ''}</button>`).join('')}
     </nav>`;
+  S.animSec = null; S.popKey = null; // las animaciones de un toque se juegan una sola vez
   const hd = $('header'); if (hd) document.documentElement.style.setProperty('--hh', hd.offsetHeight + 'px');
   if (focusId) { const f = document.getElementById(focusId); if (f) { f.focus(); try { f.setSelectionRange(sel, sel); } catch (e) { /* */ } } }
 }
@@ -462,7 +464,7 @@ function itemRow(p) {
       <span class="more" aria-label="Abrir para anotar cantidad o comentario">${ico('down', 18)}</span>
     </div>
     <div class="sts">${['out', 'low', 'ok'].map((k) =>
-      `<button class="st ${k} ${s === k ? 'on' : ''}" data-act="state" data-id="${p.id}" data-s="${k}" aria-label="${STATES[k].label}">
+      `<button class="st ${k} ${s === k ? 'on' : ''} ${S.popKey === p.id + ':' + k ? 'pop' : ''}" data-act="state" data-id="${p.id}" data-s="${k}" aria-label="${STATES[k].label}">
         <i>${stIcon(k)}</i><span>${STATES[k].label}</span></button>`).join('')}</div>
   </div>`;
 }
@@ -493,10 +495,11 @@ function reporteView(owner) {
     const out = items.filter((p) => stateOf(p.id) === 'out').length;
     const low = items.filter((p) => stateOf(p.id) === 'low').length;
     const open = forceOpen || S.open[s];
-    return `<section class="sw ${open ? 'open' : ''}"><button class="acc ${open ? 'on' : ''}" data-act="sec" data-sec="${esc(s)}">
+    const an = S.animSec === s ? 'anim' : '';
+    return `<section class="sw ${open ? 'open' : ''}"><button class="acc ${open ? 'on' : ''} ${an}" data-act="sec" data-sec="${esc(s)}">
       <span class="at">${esc(s)}</span>
       <span class="ac">${out ? `<b class="dot out">${out}</b>` : ''}${low ? `<b class="dot low">${low}</b>` : ''}<em>${items.length}</em></span>
-      <span class="car">${ico('down', 20)}</span></button>${open ? `<div class="accb">${items.map(itemRow).join('')}
+      <span class="car">${ico('down', 20)}</span></button>${open ? `<div class="accb ${an}">${items.map(itemRow).join('')}
       ${forceOpen ? '' : `<button class="accclose" data-act="sec" data-sec="${esc(s)}">${ico('up', 18)} Cerrar ${esc(s)}</button>`}</div>` : ''}</section>`;
   }).join('');
   return `${rep ? `<div class="done">${ico('check', 18)} Reporte enviado hoy a las ${hhmm(rep.at)} por ${esc((rep.byName || '').split(' ')[0])}</div>` : ''}
@@ -513,11 +516,18 @@ function openSheet(id) {
   const prod = { ...p, id }; const st = getSt(id);
   S.sheet = {
     id, p: prod, state: st.state || 'ok', mode: st.mode || prod.modes[0],
-    qty: st.qty ?? null, note: noteOf(st),
+    qty: st.qty ?? null, note: noteOf(st), fresh: true,
   };
   renderSheet();
 }
-function closeSheet() { S.sheet = null; const sh = $('#sheet'); sh.classList.remove('open'); sh.innerHTML = ''; }
+function closeSheet() {
+  S.sheet = null; const sh = $('#sheet'); sh.classList.add('closing');
+  setTimeout(() => { if (!S.sheet) { sh.classList.remove('open', 'closing'); sh.innerHTML = ''; } }, 180);
+}
+function sheetIn(sh, z) { // animación de entrada solo al abrir, no en cada cambio de cantidad
+  if (!z.fresh) return; z.fresh = false;
+  sh.querySelector('.panel').classList.add('in'); sh.querySelector('.scrim').classList.add('in');
+}
 
 function barText(p, mode, v) {
   const m = MODES[mode]; const u = esc(unitOf(p, mode));
@@ -560,7 +570,7 @@ function renderLeftSheet() {
       <div class="row"><button class="btn ghost" data-act="sheet-close">Cancelar</button>
       <button class="btn primary" data-act="sheet-save">Guardar</button></div>
     </div>`;
-  sh.classList.add('open');
+  sh.classList.remove('closing'); sh.classList.add('open'); sheetIn(sh, z);
 }
 
 function renderSheet() {
@@ -583,7 +593,7 @@ function renderSheet() {
       <div class="row"><button class="btn ghost" data-act="sheet-close">Cancelar</button>
       <button class="btn primary" data-act="sheet-save">Guardar</button></div>
     </div>`;
-  sh.classList.add('open');
+  sh.classList.remove('closing'); sh.classList.add('open'); sheetIn(sh, z);
 }
 const unitName = (p, m) => {
   const mm = MODES[m];
@@ -1132,7 +1142,7 @@ document.addEventListener('click', async (e) => {
     }
     case 'state': {
       const p = S.products[t.dataset.id]; if (!p) break;
-      const s = t.dataset.s; const cur = stateOf(t.dataset.id);
+      const s = t.dataset.s; const cur = stateOf(t.dataset.id); S.popKey = t.dataset.id + ':' + s;
       await saveStatus({ ...p, id: t.dataset.id }, { state: s });
       if (s !== 'ok' && cur === 'ok') toast('Anotado. Toca el nombre si quieres agregar cantidad o comentario.');
       break;
@@ -1205,10 +1215,10 @@ document.addEventListener('click', async (e) => {
       const p = S.products[t.dataset.pid]; if (!p) break;
       const it = ((countsDoc(t.dataset.o, dayKey()).items || {})[t.dataset.pid]) || {};
       S.sheet = { left: true, owner: t.dataset.o, id: t.dataset.pid, p: { ...p, id: t.dataset.pid },
-        mode: it.leftMode || p.modes[0], qty: it.left ?? null, state: 'ok' };
+        mode: it.leftMode || p.modes[0], qty: it.left ?? null, state: 'ok', fresh: true };
       renderSheet(); break;
     }
-    case 'sec': S.open[t.dataset.sec] = !S.open[t.dataset.sec]; render(); break;
+    case 'sec': S.open[t.dataset.sec] = !S.open[t.dataset.sec]; S.animSec = t.dataset.sec; render(); break;
     case 'sent': {
       const id = t.dataset.id; const st = getSt(id); const now = B.now();
       const prev = { sentAt: st.sentAt || null, sentBy: st.sentBy || null, sentByName: st.sentByName || null };

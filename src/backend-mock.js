@@ -52,9 +52,9 @@ export const B = {
       const d = read();
       if (parts.length % 2 === 0) { cb(((d[parts[0]] || {})[parts[1]]) || null); return; }
       let m = d[parts[0]] || {};
-      if (opts.last) {
-        const ks = Object.keys(m).sort().reverse().slice(0, opts.last);
-        m = Object.fromEntries(ks.map((k) => [k, m[k]]));
+      if (opts.days) {
+        const since = new Date(Date.now() - opts.days * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
+        m = Object.fromEntries(Object.entries(m).filter(([k]) => k >= since));
       }
       cb(JSON.parse(JSON.stringify(m)));
     };

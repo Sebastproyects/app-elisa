@@ -7,7 +7,7 @@ import {
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, doc, onSnapshot, setDoc, deleteDoc, addDoc, getDoc,
-  query, orderBy, limit, documentId,
+  query, where, documentId,
 } from 'firebase/firestore';
 import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
 import { firebaseConfig, VAPID_KEY } from './firebase-config.js';
@@ -64,7 +64,10 @@ export const B = {
       return onSnapshot(doc(db, path), (s) => cb(s.exists() ? s.data() : null, s.metadata.fromCache), onErr);
     }
     let q = collection(db, path);
-    if (opts.last) q = query(q, orderBy(documentId(), 'desc'), limit(opts.last));
+    if (opts.days) { // solo los últimos N días (los ids empiezan con la fecha): no necesita índice
+      const since = new Date(Date.now() - opts.days * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
+      q = query(q, where(documentId(), '>=', since));
+    }
     return onSnapshot(q, (snap) => {
       const m = {};
       snap.forEach((d) => { m[d.id] = d.data(); });
