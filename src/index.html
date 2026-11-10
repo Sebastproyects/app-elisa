@@ -8,11 +8,14 @@
 <script>
   // Tema (claro / oscuro / automático): se aplica antes de pintar para que no parpadee.
   (function () {
-    var t = 'auto';
+    var t = 'auto', pal = 'calma';
     try { t = JSON.parse(localStorage.getItem('theme')) || 'auto'; } catch (e) {}
+    try { pal = JSON.parse(localStorage.getItem('palette')) || 'calma'; } catch (e) {}
     var dark = t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-    document.querySelector('meta[name=theme-color]').setAttribute('content', dark ? '#14181A' : '#F6F3EE');
+    document.documentElement.setAttribute('data-palette', pal === 'secretos' ? 'secretos' : 'calma');
+    var blue = pal === 'secretos';
+    document.querySelector('meta[name=theme-color]').setAttribute('content', dark ? (blue ? '#0F1626' : '#14181A') : (blue ? '#FFF3E1' : '#F6F3EE'));
   })();
 </script>
 <meta name="apple-mobile-web-app-capable" content="yes">

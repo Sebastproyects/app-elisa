@@ -54,11 +54,11 @@ const ICONS = {
 };
 const ico = (n, size = 22) => `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
 // Logo: un toldo de puesto en los colores de la app.
-const LOGO = `<svg class="logo" viewBox="0 0 96 96" aria-hidden="true"><rect width="96" height="96" rx="24" fill="#2F6F6B"/>
-  <g><path d="M18 30h60l5 16H13z" fill="#FBF6EC"/><path d="M28 30h10l-2 16H21zM48 30h10l2 16H46zM68 30h10l5 16H72z" fill="#E9A860"/>
+const LOGO = `<svg class="logo" viewBox="0 0 96 96" aria-hidden="true"><rect width="96" height="96" rx="24" style="fill:var(--hd1)"/>
+  <g><path d="M18 30h60l5 16H13z" fill="#FBF6EC"/><path d="M28 30h10l-2 16H21zM48 30h10l2 16H46zM68 30h10l5 16H72z" style="fill:var(--stripe)"/>
   <path d="M13 46q5.5 8 11 0q5.5 8 11 0q5.5 8 11 0q5.5 8 11 0q5.5 8 11 0q5.5 8 11 0" fill="#FBF6EC"/>
   <rect x="21" y="52" width="4" height="18" rx="2" fill="#FBF6EC"/><rect x="71" y="52" width="4" height="18" rx="2" fill="#FBF6EC"/>
-  <rect x="17" y="66" width="62" height="7" rx="3.5" fill="#FBF6EC"/><path d="M36 66a12 12 0 0 1 24 0z" fill="#E9A860"/></g></svg>`;
+  <rect x="17" y="66" width="62" height="7" rx="3.5" fill="#FBF6EC"/><path d="M36 66a12 12 0 0 1 24 0z" style="fill:var(--stripe)"/></g></svg>`;
 
 /* ================================ estado ================================ */
 const S = {
@@ -67,7 +67,7 @@ const S = {
   tab: null, sub: null,
   q: '', only: false, ownerFilter: 'all', prepFilter: 'all',
   sheet: null, loaded: {},
-  font: store.get('font', 1), sound: store.get('sound', true), theme: store.get('theme', 'auto'),
+  font: store.get('font', 1), sound: store.get('sound', true), theme: store.get('theme', 'auto'), palette: store.get('palette', 'calma'),
   errs: {}, push: 'unknown', deferredInstall: null, countOwner: 'p1', open: {}, cntOpen: {},
 };
 let unsubs = [];
@@ -983,6 +983,9 @@ function ajustesView() {
   <h2 class="sec">Tema</h2>
   <div class="seg">${[['Automático', 'auto'], ['Claro', 'light'], ['Oscuro', 'dark']].map(([l, v]) =>
     `<button class="${S.theme === v ? 'on' : ''}" data-act="theme" data-v="${v}">${l}</button>`).join('')}</div>
+  <h2 class="sec">Colores</h2>
+  <div class="seg">${[['Calma', 'calma', '#2F6F6B'], ['Azul y rojo', 'secretos', '#2E4C8C']].map(([l, v, col]) =>
+    `<button class="${S.palette === v ? 'on' : ''}" data-act="palette" data-v="${v}"><span class="sw2" style="background:${col}"></span>${l}</button>`).join('')}</div>
   <h2 class="sec">Avisos</h2>
   <div class="card slim"><div class="sb">${pushTxt}</div>
     ${S.push === 'default' ? '<button class="btn primary" data-act="push">Activar avisos</button>' : ''}
@@ -1100,8 +1103,10 @@ const mqDark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dar
 function applyTheme() {
   const dark = S.theme === 'dark' || (S.theme === 'auto' && mqDark && mqDark.matches);
   document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-palette', S.palette === 'secretos' ? 'secretos' : 'calma');
   const m = document.querySelector('meta[name=theme-color]');
-  if (m) m.setAttribute('content', dark ? '#14181A' : '#F6F3EE');
+  const blue = S.palette === 'secretos';
+  if (m) m.setAttribute('content', dark ? (blue ? '#0F1626' : '#14181A') : (blue ? '#FFF3E1' : '#F6F3EE'));
 }
 if (mqDark && mqDark.addEventListener) mqDark.addEventListener('change', () => { if (S.theme === 'auto') applyTheme(); });
 
@@ -1244,6 +1249,7 @@ document.addEventListener('click', async (e) => {
       break;
     case 'font': S.font = +t.dataset.v; store.set('font', S.font); applyFont(); render(); break;
     case 'theme': S.theme = t.dataset.v; store.set('theme', S.theme); applyTheme(); render(); break;
+    case 'palette': S.palette = t.dataset.v; store.set('palette', S.palette); applyTheme(); render(); break;
     case 'testalarm': await testAlarm(); break;
     case 'push': await turnOnPush(); break;
     case 'install': S.deferredInstall.prompt(); S.deferredInstall = null; render(); break;

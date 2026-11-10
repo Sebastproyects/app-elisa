@@ -3,6 +3,7 @@
   --fs:19px;
   --bg:#F6F3EE; --card:#FFFFFF; --ink:#2A2E33; --muted:#707880; --line:#E9E4DB; --soft:#F0ECE4;
   --brand:#2F6F6B; --brand-d:#245A57; --brand-soft:#E2EFED; --accent:#E9A860;
+  --hd1:#2F6F6B; --hd2:#3E8A82; --hdsh:rgba(47,111,107,.22); --stripe:#E9A860;
   --out:#C9503F; --out-bg:#FBEEEB; --low:#C48A1D; --low-bg:#FBF4E2; --ok:#3F8C66; --ok-bg:#E8F3EC;
   --shadow:0 1px 2px rgba(30,40,50,.05),0 4px 14px rgba(30,40,50,.04);
   --r:18px;
@@ -10,6 +11,15 @@
   :root[data-theme=dark]{--bg:#14181A;--card:#1E2427;--ink:#ECEEEF;--muted:#98A2A8;--line:#2C3438;--soft:#252C30;
     --brand:#6DBDB5;--brand-d:#8FD0C9;--brand-soft:#1F3836;--accent:#E9A860;
     --out:#E7796B;--out-bg:#3A2321;--low:#E0A944;--low-bg:#38301C;--ok:#62BC8C;--ok-bg:#1D3326;--shadow:none;color-scheme:dark}
+/* Paleta "Azul y rojo": Yinmn Blue #2E4C8C, Old Lace #FFF3E1 y Red #FA2D1A */
+:root[data-palette=secretos]{--bg:#FFF3E1;--card:#FFFAF2;--ink:#1D2A47;--muted:#68738D;--line:#EBDCC3;--soft:#F7E8D0;
+  --brand:#2E4C8C;--brand-d:#223A6E;--brand-soft:#E3E8F3;--accent:#FA2D1A;
+  --out:#E8301C;--out-bg:#FDE6DF;--low:#C48A1D;--low-bg:#FBF1D9;--ok:#3F8C66;--ok-bg:#E4F1E8;
+  --hd1:#2E4C8C;--hd2:#3F63AE;--hdsh:rgba(46,76,140,.25);--stripe:#FA2D1A;--shadow:0 1px 2px rgba(29,42,71,.06),0 4px 14px rgba(29,42,71,.05)}
+:root[data-palette=secretos][data-theme=dark]{--bg:#0F1626;--card:#18223A;--ink:#F3EFE6;--muted:#9BA7C2;--line:#29345A;--soft:#202B47;
+  --brand:#8FA9E6;--brand-d:#B0C3F0;--brand-soft:#1E2B4D;--accent:#FF5A47;
+  --out:#FF6B5A;--out-bg:#3A1F25;--low:#E0A944;--low-bg:#38301C;--ok:#62BC8C;--ok-bg:#1D3326;
+  --hd1:#2E4C8C;--hd2:#3A5AA3;--hdsh:rgba(0,0,0,.35);--stripe:#FA2D1A;--shadow:none}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 input,textarea{-webkit-user-select:text;user-select:text}
 html{font-size:var(--fs);touch-action:manipulation}
@@ -23,7 +33,7 @@ button{cursor:pointer;border:0;background:none}
 
 /* pantallas centradas */
 .center{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 22px;gap:12px}
-.logo{width:84px;height:84px;margin-bottom:6px;filter:drop-shadow(0 6px 14px rgba(47,111,107,.25))}
+.logo{width:84px;height:84px;margin-bottom:6px;filter:drop-shadow(0 6px 14px var(--hdsh))}
 h1{margin:0;font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
 .big{font-size:1.08rem;margin:0}
 .muted{color:var(--muted)} .small{font-size:.8rem} .hint{color:var(--muted);font-size:.8rem}
@@ -44,7 +54,7 @@ h1{margin:0;font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
 /* encabezado y pestañas */
 header{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(env(safe-area-inset-top) + 10px) 12px 8px}
 .hc{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:22px;color:#fff;
-  background:linear-gradient(135deg,#2F6F6B 0%,#3E8A82 100%);box-shadow:0 6px 18px rgba(47,111,107,.22)}
+  background:linear-gradient(135deg,var(--hd1) 0%,var(--hd2) 100%);box-shadow:0 6px 18px var(--hdsh)}
 .hl{flex:none;display:flex} .hlogo{width:40px;height:40px;border-radius:12px;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
 .ht{flex:1;min-width:0}
 .hn{font-weight:750;font-size:1.2rem;letter-spacing:-.01em;line-height:1.15} .hs{font-size:.74rem;color:rgba(255,255,255,.8)}
@@ -257,3 +267,6 @@ button:active{transform:scale(.97)}
 .acc:active,.item:active{transform:scale(.985)}
 .btn.primary:active,.done-btn:active{transform:scale(.97)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+.seg .sw2{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px;box-shadow:0 0 0 1px rgba(0,0,0,.15)}
+.seg .on .sw2{box-shadow:0 0 0 2px rgba(255,255,255,.85)}
