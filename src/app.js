@@ -100,7 +100,7 @@ function fmtQty(p, st) {
   if (m.kind === 'num') return `${fracText(+st.qty)} ${unitOf(p, mode)}`;
   if (m.kind === 'bar') {
     if (m.max === 1 && +st.qty === 1 && p.full) return p.full;
-    return `${fracText(+st.qty)} ${unitOf(p, mode) || ''}${m.max > 1 ? ` de ${m.max}` : ''}`.trim();
+    return `${fracText(+st.qty)} ${m.max === 1 && +st.qty < 1 ? deDe(unitOf(p, mode) || '') : (unitOf(p, mode) || '')}${m.max > 1 ? ` de ${m.max}` : ''}`.trim();
   }
   if (m.kind === 'yn') return +st.qty ? 'Hay' : 'No hay';
   if (m.kind === 'lvl') return LEVELS[+st.qty] || '';
@@ -532,7 +532,7 @@ function sheetIn(sh, z) { // animación de entrada solo al abrir, no en cada cam
 function barText(p, mode, v) {
   const m = MODES[mode]; const u = esc(unitOf(p, mode));
   if (m.max === 1 && v === 1 && p.full) return `<b>${esc(p.full)}</b>`;
-  return `<b>${fracText(v)}</b> ${u}${m.max > 1 ? ` (de ${m.max})` : ''}`;
+  return `<b>${fracText(v)}</b> ${m.max === 1 && v < 1 ? deDe(u) : u}${m.max > 1 ? ` (de ${m.max})` : ''}`;
 }
 function qtyWidget(p, mode, qty) {
   const m = MODES[mode]; const u = esc(unitOf(p, mode));
@@ -595,9 +595,10 @@ function renderSheet() {
     </div>`;
   sh.classList.remove('closing'); sh.classList.add('open'); sheetIn(sh, z);
 }
+const deDe = (u) => (/^de /.test(u) ? u : 'de ' + u);
 const unitName = (p, m) => {
   const mm = MODES[m];
-  if (mm.kind === 'bar') { const u = (p.units && p.units[m]) || 'cantidad'; return `barra ${/^de /.test(u) ? u : 'de ' + u}`; }
+  if (mm.kind === 'bar') { if (p.barLabel) return p.barLabel; const u = (p.units && p.units[m]) || 'cantidad'; return `barra ${deDe(u)}`; }
   if (mm.kind === 'yn') return 'hay / no hay';
   if (mm.kind === 'lvl') return 'poco / regular / sí hay';
   return unitOf(p, m);

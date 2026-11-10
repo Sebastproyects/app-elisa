@@ -33,13 +33,13 @@ export const ROLES = {
 export const ROLE_OWNER = { puesto1: 'p1', puesto2: 'p2', produccion: 'prod' };
 
 export const SECTIONS = [
-  'Sándwiches', 'Jugos', 'Gelatinas', 'Gaseosas', 'Plásticos y bolsas', 'Aguas', 'Desayuno y aguas', 'Empanadas',
-  'Cabeza', 'Pollo', 'Verduras', 'Frutas', 'Aderezos',
+  'Sándwiches', 'Aguas', 'Jugos', 'Gelatinas', 'Plásticos y bolsas', 'Desayuno y aguas', 'Empanadas',
+  'Cabeza', 'Pollo', 'Verduras', 'Frutas', 'Aderezos', 'Gaseosas',
 ];
 
 // Versión del catálogo. Al subirla, el script scheduler/migrate.mjs actualiza los productos
 // ya cargados en Firestore (solo los campos de patchFields) y borra los de MIGRATION_DELETE.
-export const CATALOG_VERSION = 6;
+export const CATALOG_VERSION = 7;
 // Cambios puntuales de campos que patchFields no toca (solo se aplican al subir la versión).
 export const MIGRATION_SET = {
   gel_fresa: { camino: 'B' },
@@ -49,7 +49,7 @@ export const MIGRATION_SET = {
 export const MIGRATION_DELETE = ['chis_sand', 'chis_emp', 'chis_gel', 'chis_des'];
 export const patchFields = (p) => {
   const o = {};
-  ['name', 'section', 'modes', 'units', 'full', 'minStock', 'count', 'noReport', 'leftOnly', 'expected', 'order'].forEach((k) => {
+  ['name', 'section', 'modes', 'units', 'full', 'barLabel', 'minStock', 'count', 'noReport', 'leftOnly', 'expected', 'order'].forEach((k) => {
     if (p[k] !== undefined) o[k] = p[k];
   });
   return o;
@@ -92,9 +92,9 @@ const BALDE = { units: { bar: 'de lo preparado' }, full: 'un balde lleno' };
 export const PRODUCTS = [
   // ---------- PUESTO 1 · Sándwiches ----------
   P('pan3', 'Pan de tres puntas', 'Sándwiches', 'p1', 'E', ['un'], { units: { un: 'panes' }, count: true, noReport: true, expected: PAN_ESPERADO }),
-  P('pollo', 'Pollo cocido', 'Sándwiches', 'p1', 'B', ['kg'], { early: true }),
-  P('cabeza', 'Cabeza de chancho preparada', 'Sándwiches', 'p1', 'A', ['half', 'bar'], { units: { half: 'bandejas', bar: 'bandeja' }, full: 'bandeja llena' }),
-  P('lechon', 'Lechón', 'Sándwiches', 'p1', 'C', ['bar', 'kg'], { early: true, units: { bar: 'pierna' }, full: 'pierna entera' }),
+  P('pollo', 'Pollo cocido', 'Sándwiches', 'p1', 'B', ['bar', 'kg'], { early: true, units: { bar: 'fuente' }, full: 'fuente llena', barLabel: 'Fuente' }),
+  P('cabeza', 'Cabeza de chancho preparada', 'Sándwiches', 'p1', 'A', ['bar', 'half'], { units: { half: 'bandejas', bar: 'bandeja' }, full: 'fuente llena', barLabel: 'Bandeja' }),
+  P('lechon', 'Lechón', 'Sándwiches', 'p1', 'C', ['bar', 'kg'], { early: true, units: { bar: 'pierna' }, full: 'pierna entera', barLabel: 'Fracción del lechón' }),
   P('lechuga', 'Lechuga', 'Sándwiches', 'p1', 'A', ['bar', 'un'], { units: { bar: 'lechuga', un: 'lechugas' }, full: 'toda la lechuga' }),
   P('tomate', 'Tomate', 'Sándwiches', 'p1', 'A', ['un', 'kg', 'lvl']),
   P('cebolla', 'Cebolla', 'Sándwiches', 'p1', 'A', VERDURA),
