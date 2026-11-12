@@ -63,7 +63,7 @@ const LOGO = `<svg class="logo" viewBox="0 0 96 96" aria-hidden="true"><rect wid
   <rect x="17" y="66" width="62" height="7" rx="3.5" fill="#FBF6EC"/><path d="M36 66a12 12 0 0 1 24 0z" style="fill:var(--stripe)"/></g></svg>`;
 
 /* ================================ estado ================================ */
-const PREVIEW_OK = ['tab', 'sec', 'font', 'theme', 'palette', 'ofilter', 'catalogo', 'catalogo-back', 'preview-on', 'preview-off', 'preview-write', 'call', 'sheet-close'];
+const PREVIEW_OK = ['tab', 'sec', 'font', 'theme', 'palette', 'ofilter', 'catalogo', 'catalogo-back', 'preview-on', 'preview-off', 'preview-write', 'cal-nav', 'cal-day', 'cal-sum', 'cal-clear', 'call', 'sheet-close'];
 const S = {
   user: null, me: null, loading: true,
   products: {}, status: {}, users: {}, reports: {}, counts: {}, config: {},
@@ -71,7 +71,7 @@ const S = {
   q: '', only: false, ownerFilter: 'all', prepFilter: 'all',
   sheet: null, loaded: {},
   font: store.get('font', 1), sound: store.get('sound', true), theme: store.get('theme', 'auto'), palette: store.get('palette', 'calma'),
-  preview: false, previewWrite: false, errs: {}, push: 'unknown', deferredInstall: null, countOwner: 'p1', open: {}, cntOpen: {},
+  calM: '', calSel: {}, calSum: false, preview: false, previewWrite: false, errs: {}, push: 'unknown', deferredInstall: null, countOwner: 'p1', open: {}, cntOpen: {},
 };
 let unsubs = [];
 let prevStatus = null;
@@ -230,7 +230,7 @@ function startWatchers() {
   }));
   unsubs.push(B.watch('config/app', (c) => { S.config = c || {}; render(); }));
   unsubs.push(B.watch('reports', (m) => { S.reports = m; render(); }, { days: 30 }));
-  unsubs.push(B.watch('counts', (m) => { S.counts = m; render(); }, { days: 14 }));
+  unsubs.push(B.watch('counts', (m) => { S.counts = m; render(); }, { days: ['admin', 'produccion'].includes(S.me.role) ? 62 : 14 }));
   if (S.me.role === 'admin') unsubs.push(B.watch('users', (m) => { S.users = m; render(); }));
 }
 
@@ -984,6 +984,7 @@ function conteoView() {
       `<button class="fchip ${S.countOwner === o ? 'on' : ''}" data-act="cowner" data-o="${o}">${OWNERS[o]}</button>`).join('')}</div>
     <div class="hint pad-s">Solo para supervisar: ${esc(OWNERS[owner])} confirma lo que llegó.${doc.reportAt ? ` Reporte enviado a las ${hhmm(doc.reportAt)}.` : ''}</div>
     ${Object.keys(groups).map((g) => `<h2 class="sec">${esc(COUNT_TITLES[g] || g)}</h2><div class="card slim">${groups[g].map(line).join('')}</div>`).join('') || '<p class="muted pad">No hay productos con conteo.</p>'}
+    ${calendarBlock(owner)}
     ${waters.length ? `<h2 class="sec">Aguas y desayuno que sobraron <span class="muted">(aprox.)</span></h2><div class="card slim">${waters.map((w) => `<div class="lrow"><span>${esc(w.p.name)}</span><b>${esc(w.text)}</b></div>`).join('')}</div>` : ''}
     ${hist}`;
   }
@@ -996,6 +997,57 @@ function conteoView() {
     ${leftTable}
     ${!isAdmin() ? sendReportBlock(doc) : ''}
     ${hist}`;
+}
+/* ---------- Conteo actual: calendario de empanadas, salteñas y papas ---------- */
+function empRows(owner, date) {
+  const has = (v) => v !== null && v !== undefined; const doc = countsDoc(owner, date);
+  return prodList().filter((p) => p.owner === owner && p.count && p.section === 'Empanadas').map((p) => {
+    const it = (doc.items || {})[p.id] || {};
+    return { p, a: has(it.arrived) ? it.arrived : 0, l: has(it.left) ? it.left : 0, any: has(it.arrived) || has(it.left) };
+  });
+}
+const kindOf = (p) => (/salte/i.test(p.name) ? 'Salteñas' : /papa/i.test(p.name) ? 'Papas rellenas' : 'Empanadas');
+function calendarBlock(owner) {
+  const today = dayKey();
+  if (!S.calM) S.calM = today.slice(0, 7);
+  const [y, m] = S.calM.split('-').map(Number);
+  const first = new Date(Date.UTC(y, m - 1, 1)); const lead = (first.getUTCDay() + 6) % 7; // lunes primero
+  const dim = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const mname = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'setiembre', 'octubre', 'noviembre', 'diciembre'][m - 1];
+  const cells = [];
+  for (let i = 0; i < lead; i++) cells.push('<span class="cd empty"></span>');
+  for (let d = 1; d <= dim; d++) {
+    const date = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const rows = empRows(owner, date); const A = rows.reduce((s, r) => s + r.a, 0); const L = rows.reduce((s, r) => s + r.l, 0);
+    const any = rows.some((r) => r.any);
+    cells.push(`<button class="cd ${S.calSel[date] ? 'sel' : ''} ${date === today ? 'today' : ''} ${date > today ? 'fut' : ''}" data-act="cal-day" data-date="${date}">
+      <b>${d}</b>${any ? `<i class="ca">${A}</i><i class="cl">${L}</i>` : '<i class="cn">·</i>'}</button>`);
+  }
+  const sel = Object.keys(S.calSel).sort();
+  let panel = '<p class="muted small pad-s">Toca un día para ver cuánto llegó y sobró.</p>';
+  if (sel.length) {
+    const tot = {}; sel.forEach((date) => empRows(owner, date).forEach((r) => {
+      const t = tot[r.p.id] = tot[r.p.id] || { p: r.p, a: 0, l: 0 }; t.a += r.a; t.l += r.l;
+    }));
+    const list = Object.values(tot);
+    const kinds = ['Empanadas', 'Salteñas', 'Papas rellenas'].map((k) => {
+      const ls = list.filter((t) => kindOf(t.p) === k); return { k, a: ls.reduce((s, t) => s + t.a, 0), l: ls.reduce((s, t) => s + t.l, 0) };
+    }).filter((x) => list.some((t) => kindOf(t.p) === x.k));
+    const title = S.calSum ? `Suma de ${sel.length} ${sel.length === 1 ? 'día' : 'días'}` : `Día ${sel[0]}`;
+    panel = `<div class="card slim"><div class="nm">${title}</div>
+      ${kinds.map((x) => `<div class="ktot"><span>${x.k}</span><span><b>${x.a}</b> llegaron · <b>${x.l}</b> sobraron</span></div>`).join('')}
+      <div class="hint">Por tipo</div>
+      ${list.map((t) => `<div class="lrow"><span>${esc(shortName(t.p.name))}</span><small>${t.a} llegaron · ${t.l} sobraron</small></div>`).join('')}</div>`;
+  }
+  return `<h2 class="sec">Conteo actual</h2>
+    <div class="cal">
+      <div class="calh"><button class="calnav" data-act="cal-nav" data-d="-1" aria-label="Mes anterior">‹</button><b>${mname} ${y}</b><button class="calnav" data-act="cal-nav" data-d="1" aria-label="Mes siguiente">›</button></div>
+      <div class="calw">${['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((x) => `<span>${x}</span>`).join('')}</div>
+      <div class="calg">${cells.join('')}</div>
+      <div class="calk"><span><i class="ca">●</i> llegaron</span><span><i class="cl">●</i> sobraron</span></div>
+      <div class="calb"><button class="fchip ${S.calSum ? 'on' : ''}" data-act="cal-sum">Sumar${S.calSum ? ' (tocando días)' : ''}</button>
+      ${sel.length ? '<button class="fchip" data-act="cal-clear">Limpiar</button>' : ''}</div>
+    </div>${panel}`;
 }
 function sendReportBlock(doc) {
   return `<div class="finish">${doc.reportAt ? `<div class="done">${ico('check', 18)} Reporte enviado a las ${hhmm(doc.reportAt)}</div>` : ''}
@@ -1314,6 +1366,14 @@ document.addEventListener('click', async (e) => {
       B.set('reports/' + id, S.reports[id]).catch(() => toast('No se pudo enviar. Se reintenta al volver el internet.'));
       break;
     }
+    case 'cal-nav': { const [y, m] = (S.calM || dayKey().slice(0, 7)).split('-').map(Number); const dt = new Date(Date.UTC(y, m - 1 + +t.dataset.d, 1)); S.calM = dt.toISOString().slice(0, 7); render(); break; }
+    case 'cal-day': {
+      const d = t.dataset.date;
+      if (S.calSum) { if (S.calSel[d]) delete S.calSel[d]; else S.calSel[d] = true; } else S.calSel = { [d]: true };
+      render(); break;
+    }
+    case 'cal-sum': S.calSum = !S.calSum; if (!S.calSum) { const k = Object.keys(S.calSel).sort()[0]; S.calSel = k ? { [k]: true } : {}; } render(); break;
+    case 'cal-clear': S.calSel = {}; render(); break;
     case 'ofilter': S.ownerFilter = t.dataset.o; render(); break;
     case 'cowner': S.countOwner = t.dataset.o; render(); break;
     case 'bought': {

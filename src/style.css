@@ -312,3 +312,19 @@ button:active{transform:scale(.97)}
 .pvbar .pvb .alt{background:transparent;color:var(--ink);border:1.5px solid var(--low)}
 .pvbar.live{background:var(--out-bg);border-color:var(--out)}
 .pvbar.live .pvb .alt{border-color:var(--out)}
+
+.cal{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:12px 10px;margin:0 0 10px}
+.calh{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;text-transform:capitalize}
+.calnav{width:40px;height:36px;border:0;border-radius:12px;background:var(--soft);color:var(--ink);font-size:1.3rem;font-weight:700}
+.calw,.calg{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.calw span{text-align:center;font-size:.7rem;color:var(--muted);font-weight:700;padding-bottom:4px}
+.cd{border:1.5px solid transparent;background:var(--soft);border-radius:10px;min-height:56px;padding:3px 0;display:flex;flex-direction:column;align-items:center;gap:1px;color:var(--ink);font:inherit}
+.cd.empty{background:transparent}
+.cd b{font-size:.78rem}.cd i{font-style:normal;font-size:.72rem;font-weight:750;line-height:1.15}
+.cd .ca,.calk .ca{color:var(--ok)}.cd .cl,.calk .cl{color:var(--low)}.cd .cn{color:var(--muted)}
+.cd.today{border-color:var(--brand)}.cd.fut{opacity:.45}
+.cd.sel{background:var(--brand);color:#fff}.cd.sel .ca,.cd.sel .cl,.cd.sel .cn{color:#fff}
+.calk{display:flex;gap:16px;justify-content:center;font-size:.72rem;color:var(--muted);margin-top:8px}
+.calb{display:flex;gap:8px;margin-top:8px}
+.ktot{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line);font-size:.9rem}
+.cd.sel .ca{color:#C9F2DC}.cd.sel .cl{color:#FFE3A3}
