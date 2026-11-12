@@ -853,8 +853,8 @@ function buyItems() {
     const seen = new Map(); const out = [];
     ordered(arr).forEach((p) => {
       const k = norm(p.name); const first = seen.get(k);
-      if (first) { first.dups.push(p.id); if (p.owner !== first.owner && !first.also.includes(p.owner)) first.also.push(p.owner); return; }
-      const c = { ...p, dups: [], also: [] }; seen.set(k, c); out.push(c);
+      if (first) { first.dups.push(p.id); first.members.push(p.id); if (p.owner !== first.owner && !first.also.includes(p.owner)) first.also.push(p.owner); return; }
+      const c = { ...p, dups: [], also: [], members: [p.id] }; seen.set(k, c); out.push(c);
     });
     return out;
   };
@@ -868,12 +868,20 @@ function prepItems() {
   return prodList().filter((p) => p.camino === 'B' && p.owner !== 'prod' && stateOf(p.id) !== 'ok' && !isBought(getSt(p.id)));
 }
 function buyCard(p, label) {
-  const st = getSt(p.id); const s = st.state; const iv = avgInterval(st);
+  const st = getSt(p.id); const iv = avgInterval(st);
   const last = (st.buyDates || []).slice(-1)[0];
-  return `<div class="card s-${s}"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}${(p.also || []).map((o) => `<span class="tag">${esc(OWNERS[o])}</span>`).join('')}
-    <span class="pill ${s}">${STATES[s].label}</span></div>
-    ${noteBlock(st)}
-    <div class="sb">${detailLine(p, st, false) || ''}</div>${notSentLine(st)}
+  const buy = label === 'Comprado'; const ids = buy ? (p.members || [p.id]) : [p.id];
+  const s = ids.some((id) => getSt(id).state === 'out') ? 'out' : st.state;
+  const multi = buy && ids.length > 1;
+  // En Comprar se resalta para quién se está pidiendo.
+  const para = (id) => { const pp = S.products[id] || p; const x = getSt(id);
+    return `<div class="para"><div class="pl">Para <b>${esc(OWNERS[pp.owner] || pp.owner)}</b><span class="pill ${x.state}">${STATES[x.state].label}</span></div>
+      ${noteBlock(x)}<div class="sb">${detailLine({ ...pp, id }, x, false) || ''}</div></div>`; };
+  const body = buy
+    ? ids.map(para).join('')
+    : `${noteBlock(st)}<div class="sb">${detailLine(p, st, false) || ''}</div>`;
+  return `<div class="card s-${s}"><div class="ct"><div class="nm">${esc(p.name)}${multi ? ':' : ''}</div>${buy ? '' : `${tagOf(p)}<span class="pill ${s}">${STATES[s].label}</span>`}</div>
+    ${body}${notSentLine(st)}
     <div class="meta">${st.since ? `En ${s === 'out' ? 'falta' : 'poco'} ${ago(st.since)}.` : ''}
       ${last ? ` Última ${label === 'Comprado' ? 'compra' : 'vez'}: ${ago(last)}.` : ''}${iv ? ` Suele ser cada ~${iv} días.` : ''}</div>
     <button class="btn done-btn" data-act="bought" data-id="${p.id}" data-dups="${(p.dups || []).join(',')}">✔ ${label}</button></div>`;

@@ -328,3 +328,10 @@ button:active{transform:scale(.97)}
 .calb{display:flex;gap:8px;margin-top:8px}
 .ktot{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line);font-size:.9rem}
 .cd.sel .ca{color:#C9F2DC}.cd.sel .cl{color:#FFE3A3}
+
+.para{background:var(--brand-soft);border-radius:12px;padding:8px 11px;margin:8px 0}
+.para .pl{display:flex;align-items:center;gap:8px;font-size:.95rem}
+.para .pl b{color:var(--brand-d);font-size:1.02rem}
+.para .pl .pill{margin-left:auto}
+.para .sb{margin-top:2px}
+.pn{font-weight:800;margin-top:6px}
