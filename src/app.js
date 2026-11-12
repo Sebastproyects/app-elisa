@@ -844,9 +844,21 @@ function buyItems() {
   const mine = all.filter((p) => p.owner === 'prod' || ['C', 'D', 'E'].includes(p.camino));
   const sort = (a, b) => sevRank(stateOf(a.id)) - sevRank(stateOf(b.id)) || (getSt(a.id).since || 0) - (getSt(b.id).since || 0);
   const flt = (p) => S.ownerFilter === 'all' || p.owner === S.ownerFilter;
+  // Orden de las secciones como en Puesto 1; lo que se repite (ej. azúcar) sale una sola vez, en la primera sección.
+  const secIdx = (p) => { const i = SECTIONS.indexOf(p.section); return i < 0 ? 99 : i; };
+  const ordered = (arr) => arr.map((p, i) => [p, i]).sort((x, y) => secIdx(x[0]) - secIdx(y[0]) || x[1] - y[1]).map((x) => x[0]);
+  const dedupe = (arr) => {
+    const seen = new Map(); const out = [];
+    ordered(arr).forEach((p) => {
+      const k = norm(p.name); const first = seen.get(k);
+      if (first) { first.dups.push(p.id); if (p.owner !== first.owner && !first.also.includes(p.owner)) first.also.push(p.owner); return; }
+      const c = { ...p, dups: [], also: [] }; seen.set(k, c); out.push(c);
+    });
+    return out;
+  };
   return {
-    todo: mine.filter((p) => !isBought(getSt(p.id))).filter(flt).sort(sort),
-    done: mine.filter((p) => isBought(getSt(p.id))).filter(flt),
+    todo: dedupe(mine.filter((p) => !isBought(getSt(p.id))).filter(flt)),
+    done: dedupe(mine.filter((p) => isBought(getSt(p.id))).filter(flt)),
     info: all.filter((p) => p.owner !== 'prod' && p.camino === 'A' && !p.supply).filter(flt).sort(sort),
   };
 }
@@ -856,13 +868,13 @@ function prepItems() {
 function buyCard(p, label) {
   const st = getSt(p.id); const s = st.state; const iv = avgInterval(st);
   const last = (st.buyDates || []).slice(-1)[0];
-  return `<div class="card s-${s}"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}
+  return `<div class="card s-${s}"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}${(p.also || []).map((o) => `<span class="tag">${esc(OWNERS[o])}</span>`).join('')}
     <span class="pill ${s}">${STATES[s].label}</span></div>
     ${noteBlock(st)}
     <div class="sb">${detailLine(p, st, false) || ''}</div>${notSentLine(st)}
     <div class="meta">${st.since ? `En ${s === 'out' ? 'falta' : 'poco'} ${ago(st.since)}.` : ''}
       ${last ? ` Última ${label === 'Comprado' ? 'compra' : 'vez'}: ${ago(last)}.` : ''}${iv ? ` Suele ser cada ~${iv} días.` : ''}</div>
-    <button class="btn done-btn" data-act="bought" data-id="${p.id}">✔ ${label}</button></div>`;
+    <button class="btn done-btn" data-act="bought" data-id="${p.id}" data-dups="${(p.dups || []).join(',')}">✔ ${label}</button></div>`;
 }
 function ownerChips() {
   const opts = [['all', 'Todos'], ['p1', 'Puesto 1'], ['p2', 'Puesto 2'], ['prod', 'Producción']];
@@ -882,7 +894,7 @@ function comprarView() {
   const { todo, done, info } = buyItems();
   return `${reportsLine()}${ownerChips()}
     <div class="lead"><b>${todo.length}</b> por comprar</div>
-    ${todo.map((p) => buyCard(p, 'Comprado')).join('') || '<p class="muted pad">Nada por comprar.</p>'}
+    ${(() => { let last = null; return todo.map((p) => { const h = p.section !== last ? `<h2 class="sec">${esc(p.section)}</h2>` : ''; last = p.section; return h + buyCard(p, 'Comprado'); }).join(''); })() || '<p class="muted pad">Nada por comprar.</p>'}
     ${info.length ? `<h2 class="sec">Lo prepara Producción (solo aviso)</h2>${info.map((p) => {
     const st = getSt(p.id);
     return `<div class="card slim s-${st.state}"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}<span class="pill ${st.state}">${STATES[st.state].label}</span></div>${noteBlock(st)}<div class="sb">${detailLine(p, st, false)}</div></div>`;
@@ -1390,12 +1402,16 @@ document.addEventListener('click', async (e) => {
     case 'ofilter': S.ownerFilter = t.dataset.o; render(); break;
     case 'cowner': S.countOwner = t.dataset.o; render(); break;
     case 'bought': {
-      const id = t.dataset.id; const st = getSt(id); const prev = { boughtAt: st.boughtAt || null, buyDates: st.buyDates || [] };
-      const now = B.now();
-      const d = { boughtAt: now, buyDates: [...prev.buyDates, now].slice(-12) };
-      S.status[id] = { ...st, ...d }; render();
-      B.set('status/' + id, d).catch(() => toast('No se pudo guardar.'));
-      toast('Marcado ✔', false, { label: 'Deshacer', fn: () => { S.status[id] = { ...S.status[id], ...prev }; render(); B.set('status/' + id, prev); } });
+      const ids = [t.dataset.id, ...String(t.dataset.dups || '').split(',').filter(Boolean)]; const now = B.now();
+      const prevs = {};
+      ids.forEach((id) => {
+        const st = getSt(id); prevs[id] = { boughtAt: st.boughtAt || null, buyDates: st.buyDates || [] };
+        const d = { boughtAt: now, buyDates: [...prevs[id].buyDates, now].slice(-12) };
+        S.status[id] = { ...st, ...d };
+        B.set('status/' + id, d).catch(() => toast('No se pudo guardar.'));
+      });
+      render();
+      toast('Marcado ✔', false, { label: 'Deshacer', fn: () => { ids.forEach((id) => { S.status[id] = { ...S.status[id], ...prevs[id] }; B.set('status/' + id, prevs[id]); }); render(); } });
       break;
     }
     case 'toast-action': if (toast.action) toast.action.fn(); $('#toast').classList.remove('show'); break;
