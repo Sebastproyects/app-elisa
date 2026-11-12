@@ -147,6 +147,8 @@ const notSentOf = (st) => (st.notSentAt && (!st.since || st.notSentAt >= st.sinc
 const notSentLine = (st) => { const n = notSentOf(st); return n ? `<div class="nsb">${ico('alert', 16)} No se envió${n.notSentAt ? ' · ' + hhmm(n.notSentAt) : ''}: “${esc(n.notSentNote || 'sin motivo')}”</div>` : ''; };
 // Lo marcado en un día anterior queda “en espera”: Puesto 1 tiene que volver a tocarlo si sigue faltando.
 const isStale = (st) => (st.state || 'ok') !== 'ok' && (st.at || 0) < day0();
+// En Puesto 1: lo de ayer o lo que Producción ya envió se ve en gris hasta que vuelvan a tocarlo.
+const isWaiting = (p) => { const st = getSt(p.id); return isStale(st) || ((st.state || 'ok') !== 'ok' && needsSend(p) && isSent(st)); };
 const needsSend = (p) => p.owner !== 'prod' && (p.camino === 'A' || p.camino === 'B') && stateOf(p.id) !== 'ok';
 // Lo que se pidió antes de que empiece Producción y a la hora límite todavía no se envió.
 function overdueItems() {
@@ -472,9 +474,11 @@ function itemRow(p) {
   const det = detailLine(p, st);
   const sent = s !== 'ok' && needsSend(p) && isSent(st)
     ? `<div class="sentb">${ico('box', 16)} Producción envió a las ${hhmm(st.sentAt)}. Marca “Sí hay” cuando llegue.</div>` : '';
-  const wait = isStale(st);
+  const wait = isWaiting(p);
   const nsl = s !== 'ok' && needsSend(p) ? notSentLine(st) : '';
-  const waitTxt = `<span class="waitb">En espera</span> Ayer marcaron “${STATES[s].label}”. Toca de nuevo si sigue.`;
+  const waitTxt = isStale(st)
+    ? `<span class="waitb">En espera</span> Ayer marcaron “${STATES[s].label}”. Toca de nuevo si sigue.`
+    : `<span class="waitb sent">Enviado ${hhmm(st.sentAt)}</span> Si llegó toca “Sí hay”. Si sigue faltando, toca de nuevo “${STATES[s].label}”.`;
   return `<div class="item s-${wait ? 'wait' : s}" data-id="${p.id}">
     <div class="im" data-act="open" data-id="${p.id}">
       <div class="imt"><div class="nm">${esc(p.name)}</div>
@@ -506,12 +510,12 @@ function reporteView(owner) {
   list.forEach((p) => { (bySec[p.section] = bySec[p.section] || []).push(p); });
   const secs = SECTIONS.filter((s) => bySec[s]);
   Object.keys(bySec).forEach((s) => { if (!secs.includes(s)) secs.push(s); });
-  const waiting = mine.filter((p) => isStale(getSt(p.id))).length;
-  const notOk = mine.filter((p) => stateOf(p.id) !== 'ok' && !isStale(getSt(p.id))).length;
+  const waiting = mine.filter((p) => isWaiting(p)).length;
+  const notOk = mine.filter((p) => stateOf(p.id) !== 'ok' && !isWaiting(p)).length;
   const forceOpen = !!q || only;
   const accordion = secs.map((s) => {
     const items = bySec[s];
-    const live = (p) => !isStale(getSt(p.id));
+    const live = (p) => !isWaiting(p);
     const out = items.filter((p) => stateOf(p.id) === 'out' && live(p)).length;
     const low = items.filter((p) => stateOf(p.id) === 'low' && live(p)).length;
     const wt = items.filter((p) => !live(p)).length;
@@ -525,7 +529,7 @@ function reporteView(owner) {
   }).join('');
   return `${rep ? `<div class="done">${ico('check', 18)} Reporte enviado hoy a las ${hhmm(rep.at)} por ${esc((rep.byName || '').split(' ')[0])}</div>` : ''}
     ${filters ? filterBar() : ''}
-    <div class="hint pad-s">${notOk ? `${notOk} producto(s) sin estar en verde` : 'Todo en verde'}. Abre una sección y toca solo lo que no está bien.${waiting ? ` <b>${waiting} en espera de ayer (gris): toca de nuevo los que sigan faltando.</b>` : ''}</div>
+    <div class="hint pad-s">${notOk ? `${notOk} producto(s) sin estar en verde` : 'Todo en verde'}. Abre una sección y toca solo lo que no está bien.${waiting ? ` <b>${waiting} en gris (enviados o de ayer): toca de nuevo los que sigan faltando.</b>` : ''}</div>
     ${accordion || '<p class="muted pad">No hay resultados.</p>'}
     <div class="finish"><button class="btn primary xl" data-act="finish" data-owner="${owner}">${ico('check', 22)} Terminé mi reporte</button>
     <p class="muted small">Lo que dejaste en verde queda confirmado como “Sí hay” por hoy.</p></div>`;
@@ -1005,7 +1009,7 @@ async function sendLlegadas() {
   S.counts[id] = { ...cur, date, owner, reportAt: now, reportBy: by, reportByName: byName };
   render(); toast('Reporte enviado a Adquisición y Producción. ¡Gracias!');
   try {
-    await B.set('counts/' + id, { date, owner, items: {}, reportAt: now, reportBy: by, reportByName: byName });
+    await B.set('counts/' + id, { date, owner, reportAt: now, reportBy: by, reportByName: byName }); // sin tocar items: ahí están las llegadas ya confirmadas
     const bits = rows.map((r) => `${r.p.name.replace(/^Empanada (de )?/i, 'Emp. ')}${r.short ? ` faltaron ${r.short}` : ''}${r.left ? ` sobraron ${r.left}` : ''}${!r.short && !r.left ? ' ok' : ''}`);
     const wbits = waters.map((w) => `${w.p.name}: ${w.text}`);
     const base = { productId: 'llegadas', owner, camino: '-', state: 'info', qty: '', note: '', by, byName, createdAt: now, sent: false, kind: 'llegadas' };

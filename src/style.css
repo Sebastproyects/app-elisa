@@ -304,3 +304,6 @@ button:active{transform:scale(.97)}
 .lrow small{color:var(--muted)}
 .seg button{white-space:nowrap}
 .card.okc .ct{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}.card.okc .nm{flex:1}
+
+.waitb.sent{background:var(--brand-soft);color:var(--brand-d)}
+.item.s-wait{border-style:dashed;border-color:color-mix(in srgb,var(--muted) 60%,transparent)}
