@@ -63,7 +63,7 @@ const LOGO = `<svg class="logo" viewBox="0 0 96 96" aria-hidden="true"><rect wid
   <rect x="17" y="66" width="62" height="7" rx="3.5" fill="#FBF6EC"/><path d="M36 66a12 12 0 0 1 24 0z" style="fill:var(--stripe)"/></g></svg>`;
 
 /* ================================ estado ================================ */
-const PREVIEW_OK = ['tab', 'sec', 'font', 'theme', 'palette', 'ofilter', 'catalogo', 'catalogo-back', 'preview-on', 'preview-off', 'preview-write', 'cal-nav', 'cal-day', 'cal-sum', 'cal-clear', 'call', 'sheet-close'];
+const PREVIEW_OK = ['tab', 'sec', 'font', 'theme', 'palette', 'ofilter', 'catalogo', 'catalogo-back', 'preview-on', 'preview-off', 'preview-write', 'cal-nav', 'cal-day', 'cal-sum', 'cal-clear', 'people-open', 'call', 'sheet-close'];
 const S = {
   user: null, me: null, loading: true,
   products: {}, status: {}, users: {}, reports: {}, counts: {}, config: {},
@@ -423,7 +423,7 @@ function headerView() {
   const pend = Object.values(S.users).filter((u) => u.role === 'pending').length;
   const call = !isAdmin()
     ? `<button class="call" data-act="call">${ico('phone', 18)} <span>Llamar a Elisa</span></button>`
-    : (S.me.role === 'admin' ? `<button class="call add" data-act="people-open" aria-label="Personas y solicitudes">${ico('userplus', 22)}${pend ? `<b class="badge">${pend}</b>` : ''}</button>` : '');
+    : (isAdmin() ? `<button class="call add" data-act="people-open" aria-label="Personas y solicitudes">${ico('userplus', 22)}${pend ? `<b class="badge">${pend}</b>` : ''}</button>` : '');
   return `<header><div class="hc"><div class="hl">${LOGO.replace('class="logo"','class="hlogo"')}</div><div class="ht"><div class="hn">${titles[role()]}</div>
     <div class="hs">${esc((S.me.name || '').split(' ')[0])}</div></div>${call}</div></header>`;
 }
@@ -1099,7 +1099,20 @@ async function saveCountMany(owner, patches) {
 const saveCountItem = (owner, pid, patch) => saveCountMany(owner, { [pid]: patch });
 
 /* ---------- Personas ---------- */
+function personasDemo() {
+  const opt = (sel) => ['puesto1', 'puesto2', 'produccion', 'admin'].map((r) => `<option ${sel === r ? 'selected' : ''}>${ROLES[r]}</option>`).join('');
+  return `<button class="btn ghost small" data-act="catalogo-back">← Volver</button>
+  <div class="card slim"><div class="sb">Vista de prueba: las personas reales solo las ve la cuenta de la señora Elisa. Abajo, un <b>ejemplo</b> de cómo se ve.</div></div>
+  <div class="lead"><b>1</b> esperando aprobación</div>
+  <h2 class="sec">Solicitudes (ejemplo)</h2>
+  <div class="card pend"><div class="ct"><div class="nm">María Ejemplo</div></div><div class="sb">maria@gmail.com · pidió entrar hoy</div>
+    <select class="sel" disabled>${opt('puesto1')}</select>
+    <div class="row"><button class="btn danger" disabled>Rechazar</button><button class="btn primary" disabled>Aprobar</button></div></div>
+  <div class="card slim"><div class="ct"><div class="nm">Rosa Ejemplo</div></div><div class="sb">rosa@gmail.com</div>
+    <select class="sel" disabled>${opt('puesto1')}</select><button class="btn danger small" disabled>Borrar cuenta</button></div>`;
+}
 function personasView() {
+  if (S.preview) return personasDemo();
   const us = Object.entries(S.users).map(([uid, u]) => ({ ...u, uid }))
     .sort((a, b) => (a.role === 'pending' ? -1 : 1) - (b.role === 'pending' ? -1 : 1) || (a.name || '').localeCompare(b.name || ''));
   const opt = (sel) => ['puesto1', 'puesto2', 'produccion', 'admin'].map((r) =>
