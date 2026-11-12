@@ -21,11 +21,17 @@ console.log(`Hora en Lima: ${today} ${String(lima.getHours()).padStart(2, '0')}:
 
 /* ----------------------------- envío ----------------------------- */
 async function send(roles, payload, { exceptUid } = {}) {
-  const snap = await db.collection('users').where('role', 'in', roles).get();
+  // Si un mismo celular quedó guardado en dos cuentas (se usó para probar dos perfiles), el aviso va solo a la última que entró.
+  const snap = await db.collection('users').get();
+  const owner = new Map();
+  snap.forEach((d) => {
+    const at = d.data().tokensAt || 0;
+    (d.data().tokens || []).forEach((t) => { const cur = owner.get(t); if (!cur || at > cur.at) owner.set(t, { uid: d.id, at }); });
+  });
   const entries = [];
   snap.forEach((d) => {
-    if (d.id === exceptUid) return;
-    (d.data().tokens || []).forEach((t) => entries.push({ uid: d.id, token: t }));
+    if (d.id === exceptUid || !roles.includes(d.data().role)) return;
+    (d.data().tokens || []).forEach((t) => { if (owner.get(t).uid === d.id) entries.push({ uid: d.id, token: t }); });
   });
   if (!entries.length) { console.log('  (nadie con avisos activados en', roles.join('+'), ')'); return 0; }
   const data = Object.fromEntries(Object.entries(payload).map(([k, v]) => [k, String(v ?? '')]));

@@ -20,6 +20,15 @@
   --brand:#8FA9E6;--brand-d:#B0C3F0;--brand-soft:#1E2B4D;--accent:#FF5A47;
   --out:#FF6B5A;--out-bg:#3A1F25;--low:#E0A944;--low-bg:#38301C;--ok:#62BC8C;--ok-bg:#1D3326;
   --hd1:#2E4C8C;--hd2:#3A5AA3;--hdsh:rgba(0,0,0,.35);--stripe:#FA2D1A;--shadow:none}
+/* Paleta "Rosa": rosado pastel con blanco */
+:root[data-palette=rosa]{--bg:#FFF6F9;--card:#FFFFFF;--ink:#3A2A31;--muted:#8A727C;--line:#F4DCE4;--soft:#FCE9EF;
+  --brand:#C8547C;--brand-d:#AB3F65;--brand-soft:#FBE3EB;--accent:#F4A9BE;
+  --out:#D8475F;--out-bg:#FDE8EC;--low:#C48A1D;--low-bg:#FDF3E1;--ok:#4E9A78;--ok-bg:#E8F4EE;
+  --hd1:#D9658B;--hd2:#EC8FAC;--hdsh:rgba(217,101,139,.28);--stripe:#FFD6E2;--shadow:0 1px 2px rgba(120,50,80,.06),0 4px 14px rgba(120,50,80,.05)}
+:root[data-palette=rosa][data-theme=dark]{--bg:#1D1317;--card:#2A1B21;--ink:#F8EDF1;--muted:#B79AA6;--line:#3D2A32;--soft:#33222A;
+  --brand:#F08FB0;--brand-d:#F7B0C8;--brand-soft:#47232F;--accent:#F4A9BE;
+  --out:#FF7A8C;--out-bg:#3F1F27;--low:#E0A944;--low-bg:#38301C;--ok:#62BC8C;--ok-bg:#1D3326;
+  --hd1:#B84E73;--hd2:#CB6486;--hdsh:rgba(0,0,0,.35);--stripe:#FFD6E2;--shadow:none}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 input,textarea{-webkit-user-select:text;user-select:text}
 html{font-size:var(--fs);touch-action:manipulation}
@@ -283,3 +292,15 @@ button:active{transform:scale(.97)}
 .waitb{display:inline-block;background:var(--line);color:var(--muted);border-radius:8px;padding:1px 7px;font-size:.7rem;font-weight:750;margin-right:4px}
 .dot.wait{background:var(--line);color:var(--muted)}
 .chips.quick{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}
+
+.pill.wait{background:var(--line);color:var(--muted)}
+:root[data-theme=dark] .pill.wait{color:var(--muted)}
+.okx.sm{width:30px;height:30px;box-shadow:none;margin-left:auto}
+.card.okc{border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+.card.nsent{border:1.5px solid var(--out);background:var(--card)}
+.row2.slimrow{justify-content:flex-end;gap:18px;margin-top:6px}
+.call.add{padding:0;width:44px;height:44px;justify-content:center;position:relative}
+.call.add .badge{top:-3px;left:auto;right:-3px}
+.lrow small{color:var(--muted)}
+.seg button{white-space:nowrap}
+.card.okc .ct{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}.card.okc .nm{flex:1}

@@ -32,6 +32,7 @@ const store = {
 
 /* ============================== iconos ============================== */
 const ICONS = {
+  userplus: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/>',
   eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   cart: '<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>',
@@ -151,10 +152,10 @@ const needsSend = (p) => p.owner !== 'prod' && (p.camino === 'A' || p.camino ===
 function overdueItems() {
   const now = Date.now(); const d0 = day0();
   if (now < d0 + deadlineMin() * 60000) return [];
-  return prodList().filter((p) => needsSend(p) && !isSent(getSt(p.id))
+  return prodList().filter((p) => needsSend(p) && !(isAdmin() && p.supply) && !isSent(getSt(p.id))
     && (getSt(p.id).since || 0) < d0 + PROD_START_MIN * 60000);
 }
-const sentToday = () => prodList().filter((p) => needsSend(p) && isSent(getSt(p.id)) && getSt(p.id).sentAt >= day0());
+const sentToday = () => prodList().filter((p) => needsSend(p) && !(isAdmin() && p.supply) && isSent(getSt(p.id)) && getSt(p.id).sentAt >= day0());
 // Los comentarios valen solo el día en que se escribieron.
 const noteOf = (st) => (st.note && st.at && dayKey(st.at) === dayKey() ? st.note : '');
 const noteBlock = (st) => (noteOf(st) ? `<div class="cmt">${ico('note', 20)}<span>${esc(noteOf(st))}</span></div>` : '');
@@ -255,8 +256,9 @@ function detectAlerts(prev, now) {
       toast(`Sobró: ${p.name} · ${fmtQty(p, { mode: now[id].leftMode, qty: now[id].left })}`, true); beep();
     }
     if (!p || n === a || now[id].by === S.user.uid) continue;
-    const relevant = isAdmin() || (role() === 'produccion' && (p.camino === 'A' || p.camino === 'B') && p.owner !== 'prod');
-    if (!relevant && !mine) continue;
+    const relevant = isAdmin() ? !p.supply
+      : ((role() === 'produccion' && (p.camino === 'A' || p.camino === 'B') && p.owner !== 'prod') || p.owner === mine);
+    if (!relevant) continue;
     if (n === 'out' || (n === 'low' && p.early)) {
       toast(`${n === 'out' ? 'FALTA' : 'Poco'}: ${p.name} (${OWNERS[p.owner]})`, true); beep();
     }
@@ -301,7 +303,7 @@ function toast(msg, sticky = false, action) {
 function alertFor(p, newState, prevState, st) {
   if (newState === prevState) return;
   if (!(newState === 'out' || (newState === 'low' && p.early))) return;
-  const to = ['admin'];
+  const to = p.supply ? [] : ['admin']; // los insumos que Producción envía no se le avisan a Adquisición
   if ((p.camino === 'A' && p.owner !== 'prod') || p.camino === 'B') to.push('produccion');
   B.add('alerts', {
     productId: p.id, name: p.name, owner: p.owner, camino: p.camino, state: newState, to,
@@ -415,8 +417,10 @@ function headerView() {
   const titles = {
     admin: 'Adquisición', puesto1: 'Puesto 1', puesto2: 'Puesto 2', produccion: 'Producción',
   };
+  const pend = Object.values(S.users).filter((u) => u.role === 'pending').length;
   const call = !isAdmin()
-    ? `<button class="call" data-act="call">${ico('phone', 18)} <span>Llamar a Elisa</span></button>` : '';
+    ? `<button class="call" data-act="call">${ico('phone', 18)} <span>Llamar a Elisa</span></button>`
+    : (S.me.role === 'admin' ? `<button class="call add" data-act="people-open" aria-label="Personas y solicitudes">${ico('userplus', 22)}${pend ? `<b class="badge">${pend}</b>` : ''}</button>` : '');
   return `<header><div class="hc"><div class="hl">${LOGO.replace('class="logo"','class="hlogo"')}</div><div class="ht"><div class="hn">${titles[role()]}</div>
     <div class="hs">${esc((S.me.name || '').split(' ')[0])}</div></div>${call}</div></header>`;
 }
@@ -655,8 +659,9 @@ function setQty(v) {
 const sevRank = (s) => (s === 'out' ? 0 : s === 'low' ? 1 : 2);
 const bySeverity = (a, b) => sevRank(stateOf(a.id)) - sevRank(stateOf(b.id)) || (getSt(a.id).since || 0) - (getSt(b.id).since || 0);
 function todayItems() {
-  return prodList().filter((p) => needsSend(p) && !isSent(getSt(p.id))).sort(bySeverity);
+  return prodList().filter((p) => needsSend(p) && !isSent(getSt(p.id)) && !notSentOf(getSt(p.id))).sort(bySeverity);
 }
+const notSentList = () => prodList().filter((p) => needsSend(p) && !isSent(getSt(p.id)) && notSentOf(getSt(p.id))).sort(bySeverity);
 function prepBlock(p) {
   const pr = PREP[PREP_OF[p.id]]; if (!pr) return '';
   return `<div class="prep"><b>${esc(pr.verb)}</b>${pr.items.length ? `<div class="chips">${pr.items.map((i) => `<span>${esc(i)}</span>`).join('')}</div>` : ''}</div>`;
@@ -679,8 +684,8 @@ const dateAgo = (d) => { const n = Math.round((Date.parse(dayKey()) - Date.parse
 
 function hoyView() {
   if (!S.loaded.status) return '<p class="muted pad">Cargando…</p>';
-  const items = todayItems(); const sent = sentToday();
-  const okCount = prodList().filter((p) => p.owner !== 'prod' && (p.camino === 'A' || p.camino === 'B')).length - items.length - sent.length;
+  const items = todayItems(); const sent = sentToday(); const nsent = notSentList();
+  const okCount = prodList().filter((p) => p.owner !== 'prod' && (p.camino === 'A' || p.camino === 'B')).length - items.length - sent.length - nsent.length;
   const left = latestLeftovers();
   return `${items.length
     ? `<div class="lead"><b>${items.length}</b><span>${items.length === 1 ? 'cosa' : 'cosas'} para preparar y enviar</span></div>`
@@ -697,6 +702,13 @@ function hoyView() {
       <div class="row2"><button class="btn done-btn" data-act="sent" data-id="${p.id}">${ico('box', 22)} Ya envié</button>
       <button class="btn ghost nosend" data-act="nosend-open" data-id="${p.id}">No envié</button></div></div>`;
   }).join('')}
+    ${nsent.length ? `<h2 class="sec">No enviados</h2>${nsent.map((p) => {
+    const st = getSt(p.id);
+    return `<div class="card slim nsent"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}<span class="pill out">${ico('alert', 14)} No enviado</span></div>
+      ${notSentLine(st)}
+      <div class="row2 slimrow"><button class="link" data-act="nosend-undo" data-id="${p.id}">Volver a la lista</button>
+      <button class="link" data-act="sent" data-id="${p.id}">Ya lo envié</button></div></div>`;
+  }).join('')}` : ''}
     ${sent.length ? `<h2 class="sec">Ya enviado hoy</h2>${sent.map((p) => {
     const st = getSt(p.id);
     return `<div class="card slim bought"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}
@@ -765,6 +777,27 @@ function llegadasHtml(who) {
   }).join('');
   return out;
 }
+function llegadasAviso() {
+  const date = dayKey(); const has = (v) => v !== null && v !== undefined;
+  return ['p1', 'p2'].filter((o) => Object.values(S.products).some((p) => p.owner === o)).map((o) => {
+    const { doc, rows, waters } = llegadasData(o, date);
+    if (!doc.reportAt) return `<p class="muted small pad-s">${esc(OWNERS[o])} todavía no envía el reporte de llegadas.</p>`;
+    const who = `${esc(OWNERS[o])} · ${esc((doc.reportByName || '').split(' ')[0])} · ${hhmm(doc.reportAt)}`;
+    const probs = rows.filter((r) => r.short > 0 || r.extra > 0);
+    const unconf = prodList().filter((p) => p.owner === o && p.count && expectedFor(p, date) !== null && !has(((doc.items || {})[p.id] || {}).arrived));
+    const head = !probs.length && !unconf.length
+      ? `<div class="card slim okc"><div class="ct"><div class="nm">Panes y empanadas completos</div><span class="okx sm">${ico('check', 18)}</span></div><div class="sb">${who}</div></div>`
+      : `<div class="card slim s-low"><div class="nm">Panes y empanadas</div>
+        ${probs.map((r) => `<div class="sb"><b>${esc(r.p.name)}</b>: ${r.short > 0 ? `faltó ${r.short}` : `sobró ${r.extra}`}</div>`).join('')}
+        ${unconf.length ? `<div class="sb">Sin confirmar: ${unconf.map((p) => esc(p.name)).join(', ')}</div>` : ''}<div class="sb">${who}</div></div>`;
+    const buys = rows.filter((r) => r.buy !== null && r.buy !== undefined).map((r) =>
+      `<div class="card s-out"><div class="ct"><div class="nm">Comprar ${esc(r.p.name.toLowerCase())}</div><span class="pill out">${ico('alert', 14)} Quedan ${r.buy}</span></div>
+      <div class="sb">Quedan menos de ${r.p.minStock}. Ya deben comprar.</div></div>`).join('');
+    const wHtml = waters.length ? `<div class="card slim"><div class="nm">Sobró (aprox.)</div>${waters.map((w) =>
+      `<div class="lrow"><span>${esc(w.p.name)}</span><b>${esc(w.text)}</b></div>`).join('')}</div>` : '';
+    return `${head}${buys}${wHtml}`;
+  }).join('');
+}
 function avisosView() {
   if (!S.loaded.status) return '<p class="muted pad">Cargando…</p>';
   if (role() === 'produccion') {
@@ -780,8 +813,8 @@ function avisosView() {
   }
   const od = overdueItems(); const sent = sentToday();
   const dl = String(S.config.sendDeadline || '07:00');
-  const ns = isAdmin() ? prodList().filter((p) => needsSend(p) && notSentOf(getSt(p.id))) : [];
-  return `${isAdmin() ? llegadasHtml('admin') : ''}
+  const ns = isAdmin() ? prodList().filter((p) => needsSend(p) && !p.supply && notSentOf(getSt(p.id))) : [];
+  return `${isAdmin() ? llegadasAviso() : ''}
     ${ns.length ? `<h2 class="sec">Producción dice que no envió</h2>${ns.map((p) => `<div class="card slim s-low"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}</div>${notSentLine(getSt(p.id))}</div>`).join('')}` : ''}
     <div class="lead"><b>${od.length}</b> ${od.length === 1 ? 'cosa sin enviar' : 'cosas sin enviar'}</div>
     <div class="hint pad-s">Lo que se pidió ayer y Producción no envió a las ${esc(dl)}.</div>
@@ -809,7 +842,7 @@ function buyItems() {
   return {
     todo: mine.filter((p) => !isBought(getSt(p.id))).filter(flt).sort(sort),
     done: mine.filter((p) => isBought(getSt(p.id))).filter(flt),
-    info: all.filter((p) => p.owner !== 'prod' && p.camino === 'A').filter(flt).sort(sort),
+    info: all.filter((p) => p.owner !== 'prod' && p.camino === 'A' && !p.supply).filter(flt).sort(sort),
   };
 }
 function prepItems() {
@@ -929,6 +962,26 @@ function conteoView() {
       return `${esc(pr.name || pid)}: ${pr.leftOnly ? '' : `llegó ${v.arrived ?? '—'}${e !== null && v.arrived !== e && v.arrived !== undefined && v.arrived !== null ? ` (esperado ${e})` : ''}, `}sobró ${left}`;
     }).join('<br>')}</div></div>`;
   }).join('') || '<p class="muted pad">Todavía no hay días anteriores.</p>'}` : '';
+  if (isAdmin()) {
+    const has = (v) => v !== null && v !== undefined;
+    const line = (p) => {
+      const it = (doc.items || {})[p.id] || {}; const exp = expectedFor(p, today);
+      let chip;
+      if (!has(it.arrived)) chip = '<span class="pill wait">Sin confirmar</span>';
+      else if (exp === null) chip = `<span class="pill ok">Llegaron ${it.arrived}</span>`;
+      else if (it.arrived < exp) chip = `<span class="pill out">Faltó ${exp - it.arrived}</span>`;
+      else if (it.arrived > exp) chip = `<span class="pill low">Sobró ${it.arrived - exp}</span>`;
+      else chip = `<span class="pill ok">${ico('check', 14)} Completo</span>`;
+      return `<div class="lrow"><span>${esc(shortName(p.name))}${has(it.left) ? `<small> · sobraron ${it.left}</small>` : ''}</span>${chip}</div>`;
+    };
+    const { waters } = llegadasData(owner, today);
+    return `<div class="chipsrow">${['p1', 'p2'].map((o) =>
+      `<button class="fchip ${S.countOwner === o ? 'on' : ''}" data-act="cowner" data-o="${o}">${OWNERS[o]}</button>`).join('')}</div>
+    <div class="hint pad-s">Solo para supervisar: ${esc(OWNERS[owner])} confirma lo que llegó.${doc.reportAt ? ` Reporte enviado a las ${hhmm(doc.reportAt)}.` : ''}</div>
+    ${Object.keys(groups).map((g) => `<h2 class="sec">${esc(COUNT_TITLES[g] || g)}</h2><div class="card slim">${groups[g].map(line).join('')}</div>`).join('') || '<p class="muted pad">No hay productos con conteo.</p>'}
+    ${waters.length ? `<h2 class="sec">Aguas y desayuno que sobraron <span class="muted">(aprox.)</span></h2><div class="card slim">${waters.map((w) => `<div class="lrow"><span>${esc(w.p.name)}</span><b>${esc(w.text)}</b></div>`).join('')}</div>` : ''}
+    ${hist}`;
+  }
   return `${isAdmin() ? `<div class="chipsrow">${['p1', 'p2'].map((o) =>
     `<button class="fchip ${S.countOwner === o ? 'on' : ''}" data-act="cowner" data-o="${o}">${OWNERS[o]}</button>`).join('')}</div>` : ''}
     <div class="lead">Hoy, ${today}</div>
@@ -992,12 +1045,13 @@ const saveCountItem = (owner, pid, patch) => saveCountMany(owner, { [pid]: patch
 function personasView() {
   const us = Object.entries(S.users).map(([uid, u]) => ({ ...u, uid }))
     .sort((a, b) => (a.role === 'pending' ? -1 : 1) - (b.role === 'pending' ? -1 : 1) || (a.name || '').localeCompare(b.name || ''));
-  const opt = (sel) => ['puesto1', 'puesto2', 'produccion'].map((r) =>
+  const opt = (sel) => ['puesto1', 'puesto2', 'produccion', 'admin'].map((r) =>
     `<option value="${r}" ${sel === r ? 'selected' : ''}>${ROLES[r]}</option>`).join('');
   return `<button class="btn ghost small" data-act="catalogo-back">← Volver</button>
   <div class="lead"><b>${us.filter((u) => u.role === 'pending').length}</b> esperando aprobación</div>
+  <h2 class="sec">Solicitudes</h2>
   ${us.map((u) => u.role === 'pending'
-    ? `<div class="card pend"><div class="ct"><div class="nm">${esc(u.name)}</div></div><div class="sb">${esc(u.email)}</div>
+    ? `<div class="card pend"><div class="ct"><div class="nm">${esc(u.name)}</div></div><div class="sb">${esc(u.email)}${u.createdAt ? ` · pidió entrar ${ago(u.createdAt)}` : ''}</div>
       <select id="role-${u.uid}" class="sel">${opt('puesto1')}</select>
       <div class="row"><button class="btn danger" data-act="deluser" data-uid="${u.uid}">Rechazar</button>
       <button class="btn primary" data-act="approve" data-uid="${u.uid}">Aprobar</button></div></div>`
@@ -1019,7 +1073,7 @@ function ajustesView() {
   <div class="seg">${[['Automático', 'auto'], ['Claro', 'light'], ['Oscuro', 'dark']].map(([l, v]) =>
     `<button class="${S.theme === v ? 'on' : ''}" data-act="theme" data-v="${v}">${l}</button>`).join('')}</div>
   <h2 class="sec">Colores</h2>
-  <div class="seg">${[['Calma', 'calma', '#2F6F6B'], ['Azul y rojo', 'secretos', '#2E4C8C']].map(([l, v, col]) =>
+  <div class="seg">${[['Calma', 'calma', '#2F6F6B'], ['Azul y rojo', 'secretos', '#2E4C8C'], ['Rosa', 'rosa', '#E58AA8']].map(([l, v, col]) =>
     `<button class="${S.palette === v ? 'on' : ''}" data-act="palette" data-v="${v}"><span class="sw2" style="background:${col}"></span>${l}</button>`).join('')}</div>
   <h2 class="sec">Avisos</h2>
   <div class="card slim"><div class="sb">${pushTxt}</div>
@@ -1119,7 +1173,8 @@ async function registerToken() {
     const t = await B.enablePush();
     if (t && !['unsupported', 'denied', 'default', 'error'].includes(t)) {
       const cur = (S.me.tokens || []).filter((x) => x !== t);
-      if (!(S.me.tokens || []).includes(t)) await B.set('users/' + S.user.uid, { tokens: [...cur, t].slice(-5) });
+      const stale = !S.me.tokensAt || B.now() - S.me.tokensAt > 6 * 3600 * 1000;
+      if (!(S.me.tokens || []).includes(t) || stale) await B.set('users/' + S.user.uid, { tokens: [...cur, t].slice(-5), tokensAt: B.now() });
     }
   } catch (e) { console.warn('token', e); }
 }
@@ -1128,7 +1183,7 @@ async function turnOnPush() {
   S.push = await B.pushStatus();
   if (t && !['unsupported', 'denied', 'default', 'error'].includes(t)) {
     const cur = (S.me.tokens || []).filter((x) => x !== t);
-    await B.set('users/' + S.user.uid, { tokens: [...cur, t].slice(-5) });
+    await B.set('users/' + S.user.uid, { tokens: [...cur, t].slice(-5), tokensAt: B.now() });
     toast('Avisos activados');
   } else if (t === 'denied') toast('Los avisos quedaron bloqueados.');
   render();
@@ -1136,13 +1191,14 @@ async function turnOnPush() {
 
 /* ================================== tema ================================== */
 const mqDark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+const PAL_COLORS = { calma: ['#F6F3EE', '#14181A'], secretos: ['#FFF3E1', '#0F1626'], rosa: ['#FFF6F9', '#1D1317'] };
 function applyTheme() {
   const dark = S.theme === 'dark' || (S.theme === 'auto' && mqDark && mqDark.matches);
   document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-  document.documentElement.setAttribute('data-palette', S.palette === 'secretos' ? 'secretos' : 'calma');
+  const pal = PAL_COLORS[S.palette] ? S.palette : 'calma';
+  document.documentElement.setAttribute('data-palette', pal);
   const m = document.querySelector('meta[name=theme-color]');
-  const blue = S.palette === 'secretos';
-  if (m) m.setAttribute('content', dark ? (blue ? '#0F1626' : '#14181A') : (blue ? '#FFF3E1' : '#F6F3EE'));
+  if (m) m.setAttribute('content', PAL_COLORS[pal][dark ? 1 : 0]);
 }
 if (mqDark && mqDark.addEventListener) mqDark.addEventListener('change', () => { if (S.theme === 'auto') applyTheme(); });
 
@@ -1176,7 +1232,13 @@ document.addEventListener('click', async (e) => {
   if (S.preview && !PREVIEW_OK.includes(a)) { toast('Vista de prueba: aquí solo se mira, no se guarda nada.'); return; }
   switch (a) {
     case 'signin': B.signIn(); break;
-    case 'signout': S.tab = null; S.sub = null; await B.signOut(); break;
+    case 'signout': {
+      try { // este celular deja de recibir los avisos de esta cuenta
+        const tk = S.me && S.user ? await B.currentToken() : null;
+        if (tk && (S.me.tokens || []).includes(tk)) await B.set('users/' + S.user.uid, { tokens: S.me.tokens.filter((x) => x !== tk) });
+      } catch (e) { /* sigue */ }
+      S.tab = null; S.sub = null; S.preview = false; await B.signOut(); break;
+    }
     case 'preview-on': S.preview = true; S.tab = null; S.sub = null; window.scrollTo(0, 0); render(); break;
     case 'preview-off': S.preview = false; S.tab = null; S.sub = null; window.scrollTo(0, 0); render(); break;
     case 'tab': S.tab = t.dataset.tab; S.sub = null; window.scrollTo(0, 0); render(); break;
@@ -1197,6 +1259,10 @@ document.addEventListener('click', async (e) => {
     case 'nosend-open': {
       const p = S.products[t.dataset.id]; if (!p) break;
       S.sheet = { nosend: true, id: t.dataset.id, p: { ...p, id: t.dataset.id }, note: '', fresh: true }; renderSheet(); break;
+    }
+    case 'nosend-undo': {
+      const id = t.dataset.id; const prev = { notSentAt: null, notSentBy: null, notSentByName: null, notSentNote: null };
+      S.status[id] = { ...getSt(id), ...prev }; render(); B.set('status/' + id, prev).catch(() => toast('No se pudo guardar.')); break;
     }
     case 'nsr': { const n = $('#note'); if (n) { n.value = t.dataset.t; S.sheet.note = t.dataset.t; } break; }
     case 'nosend-save': {
@@ -1298,6 +1364,7 @@ document.addEventListener('click', async (e) => {
       S.status[id] = { ...getSt(id), ...prev }; render(); B.set('status/' + id, prev); break;
     }
     case 'personas': S.sub = 'personas'; render(); break;
+    case 'people-open': S.tab = 'ajustes'; S.sub = 'personas'; window.scrollTo(0, 0); render(); break;
     case 'savedeadline': await B.set('config/app', { sendDeadline: $('#deadline').value || '07:00' }); toast('Hora guardada'); break;
     case 'approve': {
       const uid = t.dataset.uid; const r = document.getElementById('role-' + uid).value;

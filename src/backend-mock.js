@@ -76,6 +76,7 @@ export const B = {
   },
   now() { return Date.now(); },
   async pushStatus() { return 'default'; },
+  async currentToken() { return null; },
   async enablePush() { return 'mock-token-' + who(); },
   onForeground() {},
 };

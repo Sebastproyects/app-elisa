@@ -37,7 +37,7 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (signedIn() && request.auth.uid == uid
             && request.resource.data.role == resource.data.role
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tokens', 'name', 'photo']));
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tokens', 'tokensAt', 'name', 'photo']));
       allow delete: if isAdmin() && request.auth.uid != uid;
     }
 

@@ -95,6 +95,13 @@ export const B = {
     const token = await getToken(getMessaging(app), { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
     return token || 'error';
   },
+  async currentToken() {
+    try {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return null;
+      const reg = await navigator.serviceWorker.ready;
+      return (await getToken(getMessaging(app), { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg })) || null;
+    } catch (e) { return null; }
+  },
   onForeground(cb) {
     isSupported().then((ok) => { if (ok) onMessage(getMessaging(app), (m) => cb(m.data || {})); }).catch(() => {});
   },
