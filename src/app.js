@@ -148,7 +148,7 @@ const notSentLine = (st) => { const n = notSentOf(st); return n ? `<div class="n
 // Lo marcado en un día anterior queda “en espera”: Puesto 1 tiene que volver a tocarlo si sigue faltando.
 const isStale = (st) => (st.state || 'ok') !== 'ok' && (st.at || 0) < day0();
 // En Puesto 1: lo de ayer o lo que Producción ya envió se ve en gris hasta que vuelvan a tocarlo.
-const isWaiting = (p) => { const st = getSt(p.id); return isStale(st) || ((st.state || 'ok') !== 'ok' && needsSend(p) && isSent(st)); };
+const isWaiting = (p) => { const st = getSt(p.id); return isStale(st) || ((st.state || 'ok') !== 'ok' && ((needsSend(p) && isSent(st)) || isBought(st))); };
 const needsSend = (p) => p.owner !== 'prod' && (p.camino === 'A' || p.camino === 'B') && stateOf(p.id) !== 'ok';
 // Lo que se pidió antes de que empiece Producción y a la hora límite todavía no se envió.
 function overdueItems() {
@@ -326,7 +326,7 @@ async function saveStatus(p, patch) {
   if (state === 'ok' && patch.qty === undefined) { d.qty = null; d.mode = null; }
   if (state === 'ok' && patch.note === undefined) d.note = '';
   // Si ya se había enviado y vuelven a marcar que falta/poco, es un pedido nuevo.
-  const again = state !== 'ok' && state === prev && patch.state && (isSent(cur) || isStale(cur));
+  const again = state !== 'ok' && state === prev && patch.state && (isSent(cur) || isBought(cur) || isStale(cur));
   if (state !== prev || again) d.since = state === 'ok' ? null : now;
   else if (!cur.since && state !== 'ok') d.since = now;
   // actualiza la pantalla al instante y manda al servidor
@@ -479,7 +479,9 @@ function itemRow(p) {
   const nsl = s !== 'ok' && needsSend(p) ? notSentLine(st) : '';
   const waitTxt = isStale(st)
     ? `<span class="waitb">En espera</span> Ayer marcaron “${STATES[s].label}”. Toca de nuevo si sigue.`
-    : `<span class="waitb sent">Enviado ${hhmm(st.sentAt)}</span> Si llegó toca “Sí hay”. Si sigue faltando, toca de nuevo “${STATES[s].label}”.`;
+    : (isBought(st)
+      ? `<span class="waitb sent">Comprado ${hhmm(st.boughtAt)}</span> Si llegó toca “Sí hay”. Si sigue faltando, toca de nuevo “${STATES[s].label}”.`
+      : `<span class="waitb sent">Enviado ${hhmm(st.sentAt)}</span> Si llegó toca “Sí hay”. Si sigue faltando, toca de nuevo “${STATES[s].label}”.`);
   return `<div class="item s-${wait ? 'wait' : s}" data-id="${p.id}">
     <div class="im" data-act="open" data-id="${p.id}">
       <div class="imt"><div class="nm">${esc(p.name)}</div>
