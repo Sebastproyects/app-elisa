@@ -274,3 +274,12 @@ button:active{transform:scale(.97)}
 .pvbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;padding:10px 12px;border-radius:14px;background:var(--low-bg);color:var(--ink);border:1px solid var(--low);font-size:.8rem;font-weight:650}
 .pvbar span{display:flex;align-items:center;gap:6px}
 .pvbar button{flex:none;border:0;border-radius:10px;background:var(--brand);color:#fff;font:inherit;font-weight:700;padding:8px 10px}
+
+.row2{display:flex;gap:10px;align-items:stretch;margin-top:4px}.row2 .done-btn{flex:1.6;margin-top:0}.row2 .nosend{flex:1;min-height:56px;font-weight:700;margin:0}
+.nsb{display:flex;gap:6px;align-items:flex-start;margin-top:8px;background:var(--low-bg);color:var(--ink);border-radius:10px;padding:7px 10px;font-size:.78rem;font-weight:650}
+.nsb svg{flex:none;color:var(--low);margin-top:1px}
+.item.s-wait{background:var(--soft);border-color:var(--line);box-shadow:none}
+.item.s-wait .nm{color:var(--muted)}
+.waitb{display:inline-block;background:var(--line);color:var(--muted);border-radius:8px;padding:1px 7px;font-size:.7rem;font-weight:750;margin-right:4px}
+.dot.wait{background:var(--line);color:var(--muted)}
+.chips.quick{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}

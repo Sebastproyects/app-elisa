@@ -141,6 +141,11 @@ const deadlineMin = () => {
   return (h || 0) * 60 + (m || 0);
 };
 const PROD_START_MIN = 4 * 60 + 30; // Producción empieza 4:30
+// Producción dijo “no envié” (con motivo) para el pedido actual.
+const notSentOf = (st) => (st.notSentAt && (!st.since || st.notSentAt >= st.since) && !isSent(st) ? st : null);
+const notSentLine = (st) => { const n = notSentOf(st); return n ? `<div class="nsb">${ico('alert', 16)} No se envió${n.notSentAt ? ' · ' + hhmm(n.notSentAt) : ''}: “${esc(n.notSentNote || 'sin motivo')}”</div>` : ''; };
+// Lo marcado en un día anterior queda “en espera”: Puesto 1 tiene que volver a tocarlo si sigue faltando.
+const isStale = (st) => (st.state || 'ok') !== 'ok' && (st.at || 0) < day0();
 const needsSend = (p) => p.owner !== 'prod' && (p.camino === 'A' || p.camino === 'B') && stateOf(p.id) !== 'ok';
 // Lo que se pidió antes de que empiece Producción y a la hora límite todavía no se envió.
 function overdueItems() {
@@ -317,7 +322,7 @@ async function saveStatus(p, patch) {
   if (state === 'ok' && patch.qty === undefined) { d.qty = null; d.mode = null; }
   if (state === 'ok' && patch.note === undefined) d.note = '';
   // Si ya se había enviado y vuelven a marcar que falta/poco, es un pedido nuevo.
-  const again = state !== 'ok' && state === prev && patch.state && isSent(cur);
+  const again = state !== 'ok' && state === prev && patch.state && (isSent(cur) || isStale(cur));
   if (state !== prev || again) d.since = state === 'ok' ? null : now;
   else if (!cur.since && state !== 'ok') d.since = now;
   // actualiza la pantalla al instante y manda al servidor
@@ -463,14 +468,17 @@ function itemRow(p) {
   const det = detailLine(p, st);
   const sent = s !== 'ok' && needsSend(p) && isSent(st)
     ? `<div class="sentb">${ico('box', 16)} Producción envió a las ${hhmm(st.sentAt)}. Marca “Sí hay” cuando llegue.</div>` : '';
-  return `<div class="item s-${s}" data-id="${p.id}">
+  const wait = isStale(st);
+  const nsl = s !== 'ok' && needsSend(p) ? notSentLine(st) : '';
+  const waitTxt = `<span class="waitb">En espera</span> Ayer marcaron “${STATES[s].label}”. Toca de nuevo si sigue.`;
+  return `<div class="item s-${wait ? 'wait' : s}" data-id="${p.id}">
     <div class="im" data-act="open" data-id="${p.id}">
       <div class="imt"><div class="nm">${esc(p.name)}</div>
-      <div class="sb">${det || '<span class="hint">toca para anotar cantidad o comentario</span>'}</div>${sent}</div>
+      <div class="sb">${wait ? waitTxt : (det || '<span class="hint">toca para anotar cantidad o comentario</span>')}</div>${wait ? '' : sent}${nsl}</div>
       <span class="more" aria-label="Abrir para anotar cantidad o comentario">${ico('down', 18)}</span>
     </div>
     <div class="sts">${['out', 'low', 'ok'].map((k) =>
-      `<button class="st ${k} ${s === k ? 'on' : ''} ${S.popKey === p.id + ':' + k ? 'pop' : ''}" data-act="state" data-id="${p.id}" data-s="${k}" aria-label="${STATES[k].label}">
+      `<button class="st ${k} ${s === k && !wait ? 'on' : ''} ${S.popKey === p.id + ':' + k ? 'pop' : ''}" data-act="state" data-id="${p.id}" data-s="${k}" aria-label="${STATES[k].label}">
         <i>${stIcon(k)}</i><span>${STATES[k].label}</span></button>`).join('')}</div>
   </div>`;
 }
@@ -494,23 +502,26 @@ function reporteView(owner) {
   list.forEach((p) => { (bySec[p.section] = bySec[p.section] || []).push(p); });
   const secs = SECTIONS.filter((s) => bySec[s]);
   Object.keys(bySec).forEach((s) => { if (!secs.includes(s)) secs.push(s); });
-  const notOk = mine.filter((p) => stateOf(p.id) !== 'ok').length;
+  const waiting = mine.filter((p) => isStale(getSt(p.id))).length;
+  const notOk = mine.filter((p) => stateOf(p.id) !== 'ok' && !isStale(getSt(p.id))).length;
   const forceOpen = !!q || only;
   const accordion = secs.map((s) => {
     const items = bySec[s];
-    const out = items.filter((p) => stateOf(p.id) === 'out').length;
-    const low = items.filter((p) => stateOf(p.id) === 'low').length;
+    const live = (p) => !isStale(getSt(p.id));
+    const out = items.filter((p) => stateOf(p.id) === 'out' && live(p)).length;
+    const low = items.filter((p) => stateOf(p.id) === 'low' && live(p)).length;
+    const wt = items.filter((p) => !live(p)).length;
     const open = forceOpen || S.open[s];
     const an = S.animSec === s ? 'anim' : '';
     return `<section class="sw ${open ? 'open' : ''}"><button class="acc ${open ? 'on' : ''} ${an}" data-act="sec" data-sec="${esc(s)}">
       <span class="at">${esc(s)}</span>
-      <span class="ac">${out ? `<b class="dot out">${out}</b>` : ''}${low ? `<b class="dot low">${low}</b>` : ''}<em>${items.length}</em></span>
+      <span class="ac">${wt ? `<b class="dot wait">${wt}</b>` : ''}${out ? `<b class="dot out">${out}</b>` : ''}${low ? `<b class="dot low">${low}</b>` : ''}<em>${items.length}</em></span>
       <span class="car">${ico('down', 20)}</span></button>${open ? `<div class="accb ${an}">${items.map(itemRow).join('')}
       ${forceOpen ? '' : `<button class="accclose" data-act="sec" data-sec="${esc(s)}">${ico('up', 18)} Cerrar ${esc(s)}</button>`}</div>` : ''}</section>`;
   }).join('');
   return `${rep ? `<div class="done">${ico('check', 18)} Reporte enviado hoy a las ${hhmm(rep.at)} por ${esc((rep.byName || '').split(' ')[0])}</div>` : ''}
     ${filters ? filterBar() : ''}
-    <div class="hint pad-s">${notOk ? `${notOk} producto(s) sin estar en verde` : 'Todo en verde'}. Abre una sección y toca solo lo que no está bien.</div>
+    <div class="hint pad-s">${notOk ? `${notOk} producto(s) sin estar en verde` : 'Todo en verde'}. Abre una sección y toca solo lo que no está bien.${waiting ? ` <b>${waiting} en espera de ayer (gris): toca de nuevo los que sigan faltando.</b>` : ''}</div>
     ${accordion || '<p class="muted pad">No hay resultados.</p>'}
     <div class="finish"><button class="btn primary xl" data-act="finish" data-owner="${owner}">${ico('check', 22)} Terminé mi reporte</button>
     <p class="muted small">Lo que dejaste en verde queda confirmado como “Sí hay” por hoy.</p></div>`;
@@ -582,6 +593,7 @@ function renderLeftSheet() {
 function renderSheet() {
   const sh = $('#sheet'); const z = S.sheet; if (!z) return;
   if (z.left) { renderLeftSheet(); return; }
+  if (z.nosend) { renderNoSendSheet(); return; }
   const p = z.p;
   const chips = p.modes.length > 1
     ? `<div class="modes">${p.modes.map((m, i) =>
@@ -598,6 +610,19 @@ function renderSheet() {
       <textarea id="note" rows="2" placeholder="Ej.: se acaba para el almuerzo" data-field="note">${esc(z.note)}</textarea>
       <div class="row"><button class="btn ghost" data-act="sheet-close">Cancelar</button>
       <button class="btn primary" data-act="sheet-save">Guardar</button></div>
+    </div>`;
+  sh.classList.remove('closing'); sh.classList.add('open'); sheetIn(sh, z);
+}
+function renderNoSendSheet() {
+  const sh = $('#sheet'); const z = S.sheet;
+  sh.innerHTML = `<div class="scrim" data-act="sheet-close"></div>
+    <div class="panel"><div class="grab"></div>
+      <h3>No envié: ${esc(z.p.name)}</h3>
+      <div class="lbl">¿Por qué no se envió?</div>
+      <div class="chips quick">${['No alcanzó el tiempo', 'Falta un ingrediente', 'Lo envío más tarde', 'Ya había en el puesto'].map((t) => `<button class="mode alt" data-act="nsr" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+      <textarea id="note" rows="2" placeholder="Escribe el motivo" data-field="note">${esc(z.note)}</textarea>
+      <div class="row"><button class="btn ghost" data-act="sheet-close">Cancelar</button>
+      <button class="btn primary" data-act="nosend-save">Guardar</button></div>
     </div>`;
   sh.classList.remove('closing'); sh.classList.add('open'); sheetIn(sh, z);
 }
@@ -668,7 +693,9 @@ function hoyView() {
       <div class="sb">${detailLine(p, st, false)}${st.since ? ` · desde ${ago(st.since)}` : ''}</div>
       ${p.camino === 'B' ? '<div class="note-b">Lo prepara la señora Elisa. Tú lo envías ya hecho.</div>' : ''}
       ${p.camino === 'B' ? '' : prepBlock(p)}
-      <button class="btn done-btn" data-act="sent" data-id="${p.id}">${ico('box', 22)} Ya envié</button></div>`;
+      ${notSentLine(st)}
+      <div class="row2"><button class="btn done-btn" data-act="sent" data-id="${p.id}">${ico('box', 22)} Ya envié</button>
+      <button class="btn ghost nosend" data-act="nosend-open" data-id="${p.id}">No envié</button></div></div>`;
   }).join('')}
     ${sent.length ? `<h2 class="sec">Ya enviado hoy</h2>${sent.map((p) => {
     const st = getSt(p.id);
@@ -753,7 +780,9 @@ function avisosView() {
   }
   const od = overdueItems(); const sent = sentToday();
   const dl = String(S.config.sendDeadline || '07:00');
+  const ns = isAdmin() ? prodList().filter((p) => needsSend(p) && notSentOf(getSt(p.id))) : [];
   return `${isAdmin() ? llegadasHtml('admin') : ''}
+    ${ns.length ? `<h2 class="sec">Producción dice que no envió</h2>${ns.map((p) => `<div class="card slim s-low"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}</div>${notSentLine(getSt(p.id))}</div>`).join('')}` : ''}
     <div class="lead"><b>${od.length}</b> ${od.length === 1 ? 'cosa sin enviar' : 'cosas sin enviar'}</div>
     <div class="hint pad-s">Lo que se pidió ayer y Producción no envió a las ${esc(dl)}.</div>
     ${od.map((p) => {
@@ -792,7 +821,7 @@ function buyCard(p, label) {
   return `<div class="card s-${s}"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}
     <span class="pill ${s}">${STATES[s].label}</span></div>
     ${noteBlock(st)}
-    <div class="sb">${detailLine(p, st, false) || ''}</div>
+    <div class="sb">${detailLine(p, st, false) || ''}</div>${notSentLine(st)}
     <div class="meta">${st.since ? `En ${s === 'out' ? 'falta' : 'poco'} ${ago(st.since)}.` : ''}
       ${last ? ` Última ${label === 'Comprado' ? 'compra' : 'vez'}: ${ago(last)}.` : ''}${iv ? ` Suele ser cada ~${iv} días.` : ''}</div>
     <button class="btn done-btn" data-act="bought" data-id="${p.id}">✔ ${label}</button></div>`;
@@ -1165,6 +1194,26 @@ document.addEventListener('click', async (e) => {
     }
     case 'open': openSheet(t.dataset.id); break;
     case 'sheet-close': closeSheet(); break;
+    case 'nosend-open': {
+      const p = S.products[t.dataset.id]; if (!p) break;
+      S.sheet = { nosend: true, id: t.dataset.id, p: { ...p, id: t.dataset.id }, note: '', fresh: true }; renderSheet(); break;
+    }
+    case 'nsr': { const n = $('#note'); if (n) { n.value = t.dataset.t; S.sheet.note = t.dataset.t; } break; }
+    case 'nosend-save': {
+      const z = S.sheet; const note = (($('#note') || { value: z.note }).value || '').trim().slice(0, 200);
+      if (!note) { toast('Escribe o elige el motivo.'); break; }
+      const now = B.now(); const d = { notSentAt: now, notSentBy: S.user.uid, notSentByName: S.me.name || '', notSentNote: note };
+      const p = z.p; closeSheet();
+      S.status[p.id] = { ...getSt(p.id), ...d }; render();
+      try {
+        await B.set('status/' + p.id, d);
+        B.add('alerts', { productId: p.id, name: p.name, owner: p.owner, camino: p.camino, state: 'info', to: ['admin'], qty: '', note,
+          by: S.user.uid, byName: S.me.name || '', createdAt: now, sent: false, kind: 'noenvio',
+          title: `No se envió: ${p.name}`, body: `${note} · ${(S.me.name || '').split(' ')[0]}` }).catch(() => {});
+        toast('Anotado. La señora Elisa lo verá.');
+      } catch (e) { toast('No se pudo guardar. Intenta de nuevo.'); }
+      break;
+    }
     case 'sstate': S.sheet.state = t.dataset.s; renderSheet(); break;
     case 'mode': S.sheet.mode = t.dataset.m; S.sheet.qty = null; renderSheet(); break;
     case 'qstep': {

@@ -39,11 +39,13 @@ export const SECTIONS = [
 
 // Versión del catálogo. Al subirla, el script scheduler/migrate.mjs actualiza los productos
 // ya cargados en Firestore (solo los campos de patchFields) y borra los de MIGRATION_DELETE.
-export const CATALOG_VERSION = 7;
+export const CATALOG_VERSION = 8;
 // Cambios puntuales de campos que patchFields no toca (solo se aplican al subir la versión).
 export const MIGRATION_SET = {
   gel_fresa: { camino: 'B' },
   gel_pina: { camino: 'B' },
+  vinagreta: { camino: 'B' },
+  agua_manz: { camino: 'B' },
   panR: { minStock: 10 },
 };
 export const MIGRATION_DELETE = ['chis_sand', 'chis_emp', 'chis_gel', 'chis_des'];
@@ -105,7 +107,7 @@ export const PRODUCTS = [
   P('ketchup', 'Ketchup', 'Sándwiches', 'p1', 'C', ['bar'], POTE),
   P('sal_prep', 'Sal preparada', 'Sándwiches', 'p1', 'C', ['yn']),
   P('encurtido', 'Encurtido', 'Sándwiches', 'p1', 'C', ['bar'], POTE),
-  P('vinagreta', 'Vinagreta', 'Sándwiches', 'p1', 'C', ['bar'], POTE),
+  P('vinagreta', 'Vinagreta', 'Sándwiches', 'p1', 'B', ['bar'], POTE),
   P('papita', 'Papitas al hilo', 'Sándwiches', 'p1', 'C', ['kg']),
   P('panR', 'Pan redondo', 'Sándwiches', 'p1', 'E', ['un'], { units: { un: 'panes' }, count: true, minStock: 10 }),
   P('sanguchera', 'Sanguchera', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
@@ -134,7 +136,7 @@ export const PRODUCTS = [
   P('quinua', 'Desayuno de quinua', 'Aguas', 'p1', 'A', ['bar', 'lt'], { ...BALDE, leftOnly: true, noReport: true }),
   P('agua_pina', 'Agua de piña', 'Aguas', 'p1', 'A', ['bar', 'lt'], { ...BALDE, leftOnly: true, noReport: true }),
   P('agua_mara', 'Agua de maracuyá', 'Aguas', 'p1', 'A', ['bar', 'lt'], { ...BALDE, leftOnly: true, noReport: true }),
-  P('agua_manz', 'Agua de manzana', 'Aguas', 'p1', 'A', ['bar', 'lt'], { ...BALDE, leftOnly: true, noReport: false }),
+  P('agua_manz', 'Agua de manzana', 'Aguas', 'p1', 'B', ['bar', 'lt'], { ...BALDE, leftOnly: true, noReport: false }),
   P('agua_herv', 'Agua hervida', 'Aguas', 'p1', 'A', ['lt', 'un'], { units: { un: 'porciones de 500 ml' } }),
   P('bolsa1', 'Bolsa de 1 porción', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
   P('bolsa2', 'Bolsa de 2 porciones', 'Plásticos y bolsas', 'p1', 'C', ['pack']),
