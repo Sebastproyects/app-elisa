@@ -32,6 +32,7 @@ const store = {
 
 /* ============================== iconos ============================== */
 const ICONS = {
+  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   cart: '<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>',
   truck: '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/>',
@@ -61,6 +62,7 @@ const LOGO = `<svg class="logo" viewBox="0 0 96 96" aria-hidden="true"><rect wid
   <rect x="17" y="66" width="62" height="7" rx="3.5" fill="#FBF6EC"/><path d="M36 66a12 12 0 0 1 24 0z" style="fill:var(--stripe)"/></g></svg>`;
 
 /* ================================ estado ================================ */
+const PREVIEW_OK = ['tab', 'sec', 'font', 'theme', 'palette', 'ofilter', 'catalogo', 'catalogo-back', 'preview-on', 'preview-off', 'call', 'sheet-close'];
 const S = {
   user: null, me: null, loading: true,
   products: {}, status: {}, users: {}, reports: {}, counts: {}, config: {},
@@ -68,13 +70,14 @@ const S = {
   q: '', only: false, ownerFilter: 'all', prepFilter: 'all',
   sheet: null, loaded: {},
   font: store.get('font', 1), sound: store.get('sound', true), theme: store.get('theme', 'auto'), palette: store.get('palette', 'calma'),
-  errs: {}, push: 'unknown', deferredInstall: null, countOwner: 'p1', open: {}, cntOpen: {},
+  preview: false, errs: {}, push: 'unknown', deferredInstall: null, countOwner: 'p1', open: {}, cntOpen: {},
 };
 let unsubs = [];
 let prevStatus = null;
 let seeding = false;
 
-const role = () => (S.me ? S.me.role : null);
+// Vista de prueba: Producción puede mirar las pantallas de Adquisición, solo para leer.
+const role = () => (S.me ? (S.preview && S.me.role === 'produccion' ? 'admin' : S.me.role) : null);
 const isAdmin = () => role() === 'admin';
 const myOwner = () => ROLE_OWNER[role()] || null;
 const prodList = () => Object.entries(S.products)
@@ -237,6 +240,7 @@ async function seedCatalog() {
 
 /* ============================ avisos en la app ============================ */
 function detectAlerts(prev, now) {
+  if (S.preview) return;
   const mine = isAdmin() ? null : myOwner();
   for (const id of Object.keys(now)) {
     const a = (prev[id] || {}).state || 'ok'; const n = now[id].state || 'ok';
@@ -312,14 +316,16 @@ async function saveStatus(p, patch) {
   };
   if (state === 'ok' && patch.qty === undefined) { d.qty = null; d.mode = null; }
   if (state === 'ok' && patch.note === undefined) d.note = '';
-  if (state !== prev) d.since = state === 'ok' ? null : now;
+  // Si ya se había enviado y vuelven a marcar que falta/poco, es un pedido nuevo.
+  const again = state !== 'ok' && state === prev && patch.state && isSent(cur);
+  if (state !== prev || again) d.since = state === 'ok' ? null : now;
   else if (!cur.since && state !== 'ok') d.since = now;
   // actualiza la pantalla al instante y manda al servidor
   S.status[p.id] = { ...cur, ...d };
   render();
   try {
     await B.set('status/' + p.id, d);
-    alertFor(p, state, prev, d);
+    alertFor(p, state, again ? 'ok' : prev, d);
   } catch (e) { toast('No se pudo guardar. Se reintenta al volver el internet.'); }
 }
 
@@ -338,7 +344,7 @@ function render() {
   const tabChanged = S.shownTab !== S.tab; S.shownTab = S.tab;
   app.innerHTML = `
     ${headerView()}
-    <main class="${tabChanged ? 'enter' : ''}">${banners()}${currentView()}</main>
+    <main class="${tabChanged ? 'enter' : ''}">${S.preview ? `<div class="pvbar"><span>${ico('eye', 18)} Vista de prueba de Adquisición · solo lectura</span><button data-act="preview-off">Volver a Producción</button></div>` : ''}${banners()}${currentView()}</main>
     <nav class="tabbar" style="--n:${tabs.length}">
       ${tabs.map((t) => `<button class="tab ${t.id === S.tab ? 'on' : ''} ${t.id === S.tab && tabChanged ? 'pop' : ''}" data-act="tab" data-tab="${t.id}">
         <span class="ti">${t.icon}</span><span>${t.label}</span>${t.badge ? `<b class="badge">${t.badge}</b>` : ''}</button>`).join('')}
@@ -991,6 +997,7 @@ function ajustesView() {
     ${S.push === 'default' ? '<button class="btn primary" data-act="push">Activar avisos</button>' : ''}
     <button class="btn ghost" data-act="testalarm">${ico('bell', 20)} Probar aviso</button>
     <label class="chk"><input type="checkbox" data-field="sound" ${S.sound ? 'checked' : ''}> Sonido dentro de la app</label></div>
+  ${S.me.role === 'produccion' ? `<h2 class="sec">Probar</h2><button class="btn ghost" data-act="preview-on">${ico('eye', 20)} Ver cómo se ve Adquisición</button>` : ''}
   ${S.deferredInstall ? '<h2 class="sec">Instalar</h2><button class="btn primary" data-act="install">Instalar la app en este celular</button>' : ''}
   ${isAdmin() ? `<h2 class="sec">Administración</h2>
     <div class="card slim"><label class="lbl">Teléfono de la señora Elisa (para el botón “Llamar”)</label>
@@ -1137,9 +1144,12 @@ function applyFont() {
 document.addEventListener('click', async (e) => {
   const t = e.target.closest('[data-act]'); if (!t) return;
   const a = t.dataset.act;
+  if (S.preview && !PREVIEW_OK.includes(a)) { toast('Vista de prueba: aquí solo se mira, no se guarda nada.'); return; }
   switch (a) {
     case 'signin': B.signIn(); break;
     case 'signout': S.tab = null; S.sub = null; await B.signOut(); break;
+    case 'preview-on': S.preview = true; S.tab = null; S.sub = null; window.scrollTo(0, 0); render(); break;
+    case 'preview-off': S.preview = false; S.tab = null; S.sub = null; window.scrollTo(0, 0); render(); break;
     case 'tab': S.tab = t.dataset.tab; S.sub = null; window.scrollTo(0, 0); render(); break;
     case 'call': {
       const n = (S.config.adminPhone || '').replace(/[^\d+]/g, '');
@@ -1282,6 +1292,7 @@ function $$sts() { // refresca solo los botones de estado de la hoja mientras se
 }
 document.addEventListener('change', async (e) => {
   const t = e.target; const f = t.dataset && t.dataset.field; if (!f) return;
+  if (S.preview && !['only', 'sound'].includes(f)) { toast('Vista de prueba: aquí solo se mira, no se guarda nada.'); render(); return; }
   if (f === 'only') { S.only = t.checked; render(); }
   else if (f === 'sound') { S.sound = t.checked; store.set('sound', S.sound); }
   else if (f === 'qin' && S.sheet) {
