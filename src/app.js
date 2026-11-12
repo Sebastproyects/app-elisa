@@ -63,7 +63,7 @@ const LOGO = `<svg class="logo" viewBox="0 0 96 96" aria-hidden="true"><rect wid
   <rect x="17" y="66" width="62" height="7" rx="3.5" fill="#FBF6EC"/><path d="M36 66a12 12 0 0 1 24 0z" style="fill:var(--stripe)"/></g></svg>`;
 
 /* ================================ estado ================================ */
-const PREVIEW_OK = ['tab', 'sec', 'font', 'theme', 'palette', 'ofilter', 'catalogo', 'catalogo-back', 'preview-on', 'preview-off', 'preview-write', 'cal-nav', 'cal-day', 'cal-sum', 'cal-clear', 'people-open', 'call', 'sheet-close'];
+const PREVIEW_OK = ['tab', 'sec', 'font', 'theme', 'palette', 'ofilter', 'catalogo', 'catalogo-back', 'preview-on', 'preview-off', 'preview-write', 'bsec', 'cal-nav', 'cal-day', 'cal-sum', 'cal-clear', 'people-open', 'call', 'sheet-close'];
 const S = {
   user: null, me: null, loading: true,
   products: {}, status: {}, users: {}, reports: {}, counts: {}, config: {},
@@ -71,7 +71,7 @@ const S = {
   q: '', only: false, ownerFilter: 'all', prepFilter: 'all',
   sheet: null, loaded: {},
   font: store.get('font', 1), sound: store.get('sound', true), theme: store.get('theme', 'auto'), palette: store.get('palette', 'calma'),
-  calM: '', calSel: {}, calSum: false, preview: false, previewWrite: false, errs: {}, push: 'unknown', deferredInstall: null, countOwner: 'p1', open: {}, cntOpen: {},
+  buyClosed: {}, calM: '', calSel: {}, calSum: false, preview: false, previewWrite: false, errs: {}, push: 'unknown', deferredInstall: null, countOwner: 'p1', open: {}, cntOpen: {},
 };
 let unsubs = [];
 let prevStatus = null;
@@ -894,7 +894,16 @@ function comprarView() {
   const { todo, done, info } = buyItems();
   return `${reportsLine()}${ownerChips()}
     <div class="lead"><b>${todo.length}</b> por comprar</div>
-    ${(() => { let last = null; return todo.map((p) => { const h = p.section !== last ? `<h2 class="sec">${esc(p.section)}</h2>` : ''; last = p.section; return h + buyCard(p, 'Comprado'); }).join(''); })() || '<p class="muted pad">Nada por comprar.</p>'}
+    ${(() => {
+    const secs = []; todo.forEach((p) => { let g = secs.find((x) => x.s === p.section); if (!g) { g = { s: p.section, items: [] }; secs.push(g); } g.items.push(p); });
+    return secs.map(({ s, items }) => {
+      const open = !S.buyClosed[s]; const an = S.animSec === s ? 'anim' : '';
+      const out = items.filter((p) => stateOf(p.id) === 'out').length; const low = items.filter((p) => stateOf(p.id) === 'low').length;
+      return `<section class="sw ${open ? 'open' : ''}"><button class="acc ${open ? 'on' : ''} ${an}" data-act="bsec" data-sec="${esc(s)}">
+        <span class="at">${esc(s)}</span><span class="ac">${out ? `<b class="dot out">${out}</b>` : ''}${low ? `<b class="dot low">${low}</b>` : ''}<em>${items.length}</em></span>
+        <span class="car">${ico('down', 20)}</span></button>${open ? `<div class="accb ${an}">${items.map((p) => buyCard(p, 'Comprado')).join('')}</div>` : ''}</section>`;
+    }).join('');
+  })() || '<p class="muted pad">Nada por comprar.</p>'}
     ${info.length ? `<h2 class="sec">Lo prepara Producción (solo aviso)</h2>${info.map((p) => {
     const st = getSt(p.id);
     return `<div class="card slim s-${st.state}"><div class="ct"><div class="nm">${esc(p.name)}</div>${tagOf(p)}<span class="pill ${st.state}">${STATES[st.state].label}</span></div>${noteBlock(st)}<div class="sb">${detailLine(p, st, false)}</div></div>`;
@@ -1444,6 +1453,7 @@ document.addEventListener('click', async (e) => {
         mode: it.leftMode || p.modes[0], qty: it.left ?? null, state: 'ok', fresh: true };
       renderSheet(); break;
     }
+    case 'bsec': S.buyClosed[t.dataset.sec] = !S.buyClosed[t.dataset.sec]; S.animSec = t.dataset.sec; render(); break;
     case 'sec': S.open[t.dataset.sec] = !S.open[t.dataset.sec]; S.animSec = t.dataset.sec; render(); break;
     case 'sent': {
       const id = t.dataset.id; const st = getSt(id); const now = B.now();
