@@ -63,7 +63,7 @@ const LOGO = `<svg class="logo" viewBox="0 0 96 96" aria-hidden="true"><rect wid
   <rect x="17" y="66" width="62" height="7" rx="3.5" fill="#FBF6EC"/><path d="M36 66a12 12 0 0 1 24 0z" style="fill:var(--stripe)"/></g></svg>`;
 
 /* ================================ estado ================================ */
-const PREVIEW_OK = ['tab', 'sec', 'font', 'theme', 'palette', 'ofilter', 'catalogo', 'catalogo-back', 'preview-on', 'preview-off', 'call', 'sheet-close'];
+const PREVIEW_OK = ['tab', 'sec', 'font', 'theme', 'palette', 'ofilter', 'catalogo', 'catalogo-back', 'preview-on', 'preview-off', 'preview-write', 'call', 'sheet-close'];
 const S = {
   user: null, me: null, loading: true,
   products: {}, status: {}, users: {}, reports: {}, counts: {}, config: {},
@@ -71,7 +71,7 @@ const S = {
   q: '', only: false, ownerFilter: 'all', prepFilter: 'all',
   sheet: null, loaded: {},
   font: store.get('font', 1), sound: store.get('sound', true), theme: store.get('theme', 'auto'), palette: store.get('palette', 'calma'),
-  preview: false, errs: {}, push: 'unknown', deferredInstall: null, countOwner: 'p1', open: {}, cntOpen: {},
+  preview: false, previewWrite: false, errs: {}, push: 'unknown', deferredInstall: null, countOwner: 'p1', open: {}, cntOpen: {},
 };
 let unsubs = [];
 let prevStatus = null;
@@ -353,7 +353,8 @@ function render() {
   const tabChanged = S.shownTab !== S.tab; S.shownTab = S.tab;
   app.innerHTML = `
     ${headerView()}
-    <main class="${tabChanged ? 'enter' : ''}">${S.preview ? `<div class="pvbar"><span>${ico('eye', 18)} Vista de prueba de Adquisición · solo lectura</span><button data-act="preview-off">Volver a Producción</button></div>` : ''}${banners()}${currentView()}</main>
+    <main class="${tabChanged ? 'enter' : ''}">${S.preview ? `<div class="pvbar ${S.previewWrite ? 'live' : ''}"><span>${ico('eye', 18)} ${S.previewWrite ? 'Adquisición de prueba · lo que toques SE GUARDA' : 'Vista de prueba de Adquisición · solo lectura'}</span>
+      <div class="pvb"><button class="alt" data-act="preview-write">${S.previewWrite ? 'Solo mirar' : 'Permitir guardar'}</button><button data-act="preview-off">Volver a Producción</button></div></div>` : ''}${banners()}${currentView()}</main>
     <nav class="tabbar" style="--n:${tabs.length}">
       ${tabs.map((t) => `<button class="tab ${t.id === S.tab ? 'on' : ''} ${t.id === S.tab && tabChanged ? 'pop' : ''}" data-act="tab" data-tab="${t.id}">
         <span class="ti">${t.icon}</span><span>${t.label}</span>${t.badge ? `<b class="badge">${t.badge}</b>` : ''}</button>`).join('')}
@@ -1233,7 +1234,7 @@ function applyFont() {
 document.addEventListener('click', async (e) => {
   const t = e.target.closest('[data-act]'); if (!t) return;
   const a = t.dataset.act;
-  if (S.preview && !PREVIEW_OK.includes(a)) { toast('Vista de prueba: aquí solo se mira, no se guarda nada.'); return; }
+  if (S.preview && !S.previewWrite && !PREVIEW_OK.includes(a)) { toast('Vista de prueba: aquí solo se mira, no se guarda nada.'); return; }
   switch (a) {
     case 'signin': B.signIn(); break;
     case 'signout': {
@@ -1241,10 +1242,11 @@ document.addEventListener('click', async (e) => {
         const tk = S.me && S.user ? await B.currentToken() : null;
         if (tk && (S.me.tokens || []).includes(tk)) await B.set('users/' + S.user.uid, { tokens: S.me.tokens.filter((x) => x !== tk) });
       } catch (e) { /* sigue */ }
-      S.tab = null; S.sub = null; S.preview = false; await B.signOut(); break;
+      S.tab = null; S.sub = null; S.preview = false; S.previewWrite = false; await B.signOut(); break;
     }
     case 'preview-on': S.preview = true; S.tab = null; S.sub = null; window.scrollTo(0, 0); render(); break;
-    case 'preview-off': S.preview = false; S.tab = null; S.sub = null; window.scrollTo(0, 0); render(); break;
+    case 'preview-write': S.previewWrite = !S.previewWrite; toast(S.previewWrite ? 'Ahora lo que toques SÍ se guarda (datos reales).' : 'Vuelve a ser solo lectura.'); render(); break;
+    case 'preview-off': S.preview = false; S.previewWrite = false; S.tab = null; S.sub = null; window.scrollTo(0, 0); render(); break;
     case 'tab': S.tab = t.dataset.tab; S.sub = null; window.scrollTo(0, 0); render(); break;
     case 'call': {
       const n = (S.config.adminPhone || '').replace(/[^\d+]/g, '');
@@ -1412,7 +1414,7 @@ function $$sts() { // refresca solo los botones de estado de la hoja mientras se
 }
 document.addEventListener('change', async (e) => {
   const t = e.target; const f = t.dataset && t.dataset.field; if (!f) return;
-  if (S.preview && !['only', 'sound'].includes(f)) { toast('Vista de prueba: aquí solo se mira, no se guarda nada.'); render(); return; }
+  if (S.preview && !S.previewWrite && !['only', 'sound'].includes(f)) { toast('Vista de prueba: aquí solo se mira, no se guarda nada.'); render(); return; }
   if (f === 'only') { S.only = t.checked; render(); }
   else if (f === 'sound') { S.sound = t.checked; store.set('sound', S.sound); }
   else if (f === 'qin' && S.sheet) {

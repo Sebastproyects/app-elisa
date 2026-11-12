@@ -307,3 +307,8 @@ button:active{transform:scale(.97)}
 
 .waitb.sent{background:var(--brand-soft);color:var(--brand-d)}
 .item.s-wait{border-style:dashed;border-color:color-mix(in srgb,var(--muted) 60%,transparent)}
+
+.pvbar{flex-wrap:wrap}.pvbar .pvb{display:flex;gap:8px;width:100%}.pvbar .pvb button{flex:1}
+.pvbar .pvb .alt{background:transparent;color:var(--ink);border:1.5px solid var(--low)}
+.pvbar.live{background:var(--out-bg);border-color:var(--out)}
+.pvbar.live .pvb .alt{border-color:var(--out)}
